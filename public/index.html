@@ -412,42 +412,42 @@ tr:hover td { background: #fdf4fb; }
     </div>
     <nav class="sidebar-nav">
       <div class="nav-section">Principal</div>
-      <button class="nav-item active" data-page="dashboard" onclick="navigate('dashboard');closeSidebarMobile()">
+      <button class="nav-item active" data-page="dashboard" data-role="admin,profissional,recepcionista" onclick="navigate('dashboard');closeSidebarMobile()">
         <span class="icon">🏠</span> Dashboard
       </button>
-      <button class="nav-item" data-page="agenda" onclick="navigate('agenda');closeSidebarMobile()">
+      <button class="nav-item" data-page="agenda" data-role="admin,profissional,recepcionista,cliente" onclick="navigate('agenda');closeSidebarMobile()">
         <span class="icon">📅</span> Agenda
       </button>
-      <button class="nav-item" data-page="agendamentos" onclick="navigate('agendamentos');closeSidebarMobile()">
+      <button class="nav-item" data-page="agendamentos" data-role="admin,profissional,recepcionista" onclick="navigate('agendamentos');closeSidebarMobile()">
         <span class="icon">📋</span> Agendamentos
       </button>
-      <div class="nav-section">Cadastros</div>
-      <button class="nav-item" data-page="clientes" onclick="navigate('clientes');closeSidebarMobile()">
+      <div class="nav-section" data-role="admin,profissional,recepcionista">Cadastros</div>
+      <button class="nav-item" data-page="clientes" data-role="admin,profissional,recepcionista" onclick="navigate('clientes');closeSidebarMobile()">
         <span class="icon">👤</span> Clientes
       </button>
-      <button class="nav-item" data-page="profissionais" onclick="navigate('profissionais');closeSidebarMobile()">
+      <button class="nav-item" data-page="profissionais" data-role="admin,profissional,recepcionista" onclick="navigate('profissionais');closeSidebarMobile()">
         <span class="icon">💆</span> Profissionais
       </button>
-      <button class="nav-item" data-page="procedimentos" onclick="navigate('procedimentos');closeSidebarMobile()">
+      <button class="nav-item" data-page="procedimentos" data-role="admin,profissional,recepcionista" onclick="navigate('procedimentos');closeSidebarMobile()">
         <span class="icon">✨</span> Procedimentos
       </button>
-      <button class="nav-item" data-page="pacotes" onclick="navigate('pacotes');closeSidebarMobile()">
+      <button class="nav-item" data-page="pacotes" data-role="admin,profissional,recepcionista" onclick="navigate('pacotes');closeSidebarMobile()">
         <span class="icon">📦</span> Pacotes de Sessões
       </button>
-      <div class="nav-section">Gestão</div>
-      <button class="nav-item" data-page="financeiro" onclick="navigate('financeiro');closeSidebarMobile()">
+      <div class="nav-section" data-role="admin,profissional,recepcionista">Gestão</div>
+      <button class="nav-item" data-page="financeiro" data-role="admin,profissional,recepcionista" onclick="navigate('financeiro');closeSidebarMobile()">
         <span class="icon">💰</span> Financeiro
       </button>
-      <button class="nav-item" data-page="relatorios" onclick="navigate('relatorios');closeSidebarMobile()">
+      <button class="nav-item" data-page="relatorios" data-role="admin,profissional,recepcionista" onclick="navigate('relatorios');closeSidebarMobile()">
         <span class="icon">📊</span> Relatórios
       </button>
-      <button class="nav-item" data-page="vendas-dia" onclick="navigate('vendas-dia');closeSidebarMobile()">
+      <button class="nav-item" data-page="vendas-dia" data-role="admin,profissional,recepcionista" onclick="navigate('vendas-dia');closeSidebarMobile()">
         <span class="icon">📈</span> Vendas por Dia
       </button>
-      <button class="nav-item" data-page="notificacoes" onclick="navigate('notificacoes');closeSidebarMobile()">
+      <button class="nav-item" data-page="notificacoes" data-role="admin,profissional,recepcionista" onclick="navigate('notificacoes');closeSidebarMobile()">
         <span class="icon">🔔</span> Notificações
       </button>
-      <button class="nav-item" data-page="configuracoes" onclick="navigate('configuracoes');closeSidebarMobile()">
+      <button class="nav-item" data-page="configuracoes" data-role="admin,profissional,recepcionista" onclick="navigate('configuracoes');closeSidebarMobile()">
         <span class="icon">⚙️</span> Configurações
       </button>
     </nav>
@@ -729,15 +729,17 @@ async function criarContaClienteLogin(nome, email, telefone) {
       return;
     }
     
-    // Sucesso!
-    toast('✅ Conta criada com sucesso!', 'success');
+    // Sucesso! Fazer login automático
+    toast('✅ Conta criada com sucesso! Bem-vinda! 🎉', 'success');
     
-    // Mostrar modal com credenciais
+    // Mostrar credenciais e fazer login automático
     setTimeout(() => {
+      fecharCriarConta();
+      
       showModal(`<div class="modal" style="max-width:420px;text-align:center">
         <div style="font-size:40px;margin-bottom:16px">✅</div>
-        <h3 style="margin-bottom:8px">Conta Criada!</h3>
-        <p style="color:var(--text2);margin-bottom:16px">Suas credenciais foram geradas:</p>
+        <h3 style="margin-bottom:8px">Bem-vinda!</h3>
+        <p style="color:var(--text2);margin-bottom:16px">Sua conta foi criada e você já tem acesso ao app</p>
         
         <div style="background:var(--surface2);padding:16px;border-radius:10px;margin-bottom:16px;text-align:left">
           <p style="font-size:12px;color:var(--text3);margin:0 0 4px 0">📧 E-mail:</p>
@@ -747,16 +749,23 @@ async function criarContaClienteLogin(nome, email, telefone) {
           <p style="font-size:14px;font-weight:bold;margin:0;font-family:monospace;word-break:break-all">${senhaGerada}</p>
         </div>
         
-        <p style="font-size:12px;color:var(--danger);margin-bottom:16px">
-          ⚠️ Guarde sua senha em local seguro!
+        <p style="font-size:11px;color:var(--text3);margin-bottom:16px">
+          💾 Guarde sua senha para futuros acessos
         </p>
         
-        <button class="btn btn-primary" onclick="closeModal();document.getElementById('login-email').focus();" style="width:100%;padding:12px;background:var(--primary);color:white;border:none;border-radius:8px;cursor:pointer;font-weight:bold;">
-          Fazer Login Agora
+        <button class="btn btn-primary" onclick="closeModal();" style="width:100%;padding:12px;background:var(--primary);color:white;border:none;border-radius:8px;cursor:pointer;font-weight:bold;">
+          Acessar Agenda de Horários
         </button>
       </div>`);
       
-      fecharCriarConta();
+      // Fazer login automático após 1 segundo
+      setTimeout(async () => {
+        const { error } = await sb.auth.signInWithPassword({ email: email, password: senhaGerada });
+        if (!error) {
+          closeModal();
+          toast('🎉 Você está logada!', 'success');
+        }
+      }, 1000);
     }, 800);
     
   } catch (err) {
@@ -1044,9 +1053,29 @@ async function loadProfile() {
   if (data) {
     document.getElementById('sidebar-user-name').textContent = data.nome;
     document.getElementById('sidebar-user-email').textContent = data.email || '';
-    const roleLabels = { admin: 'Admin', profissional: 'Profissional', recepcionista: 'Recepcionista' };
+    const roleLabels = { admin: 'Admin', profissional: 'Profissional', recepcionista: 'Recepcionista', cliente: 'Cliente' };
     document.getElementById('sidebar-user-role').textContent = roleLabels[data.role] || data.role;
+    
+    // Filtrar sidebar baseado no role
+    filterSidebarByRole(data.role);
+    
+    // Se é cliente, navegar para agenda automaticamente
+    if (data.role === 'cliente') {
+      setTimeout(() => navigate('agenda'), 500);
+    }
   }
+}
+
+function filterSidebarByRole(role) {
+  // Mostrar/esconder itens do sidebar baseado no role
+  document.querySelectorAll('.nav-item, .nav-section').forEach(el => {
+    const allowedRoles = el.getAttribute('data-role');
+    if (allowedRoles) {
+      const rolesArray = allowedRoles.split(',').map(r => r.trim());
+      const isAllowed = rolesArray.includes(role);
+      el.style.display = isAllowed ? '' : 'none';
+    }
+  });
 }
 
 async function loadClinicaConfig() {
