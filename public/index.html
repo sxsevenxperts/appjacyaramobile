@@ -70,6 +70,16 @@ body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); co
 
 /* ── LAYOUT ── */
 #app { display: none; height: 100vh; overflow: hidden; }
+
+/* overlay escuro ao abrir sidebar no mobile */
+.sidebar-overlay {
+  display: none;
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.4);
+  z-index: 99;
+}
+.sidebar-overlay.active { display: block; }
+
 .sidebar {
   position: fixed; left: 0; top: 0; bottom: 0;
   width: var(--sidebar-w);
@@ -77,19 +87,7 @@ body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); co
   border-right: 1.5px solid var(--border);
   display: flex; flex-direction: column;
   z-index: 100;
-  transition: width 0.3s ease, margin-left 0.3s ease;
-}
-.sidebar.collapsed {
-  width: 60px;
-}
-.sidebar.collapsed .sidebar-brand,
-.sidebar.collapsed .nav-item span,
-.sidebar.collapsed .sidebar-footer {
-  display: none;
-}
-.sidebar.collapsed .nav-item .icon {
-  width: 100%;
-  margin: 0;
+  transition: transform 0.28s ease;
 }
 .sidebar-brand {
   padding: 20px 20px 16px;
@@ -125,28 +123,25 @@ body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); co
 }
 .btn-logout:hover { border-color: var(--danger); color: var(--danger); }
 
+/* desktop: sidebar sempre visível */
 .main-content {
   margin-left: var(--sidebar-w);
   height: 100vh;
   overflow-y: auto;
   display: flex; flex-direction: column;
-  transition: margin-left 0.3s ease;
-}
-.sidebar.collapsed ~ .main-content {
-  margin-left: 60px;
 }
 .top-bar {
   background: white;
   border-bottom: 1.5px solid var(--border);
   padding: 16px 28px;
-  display: flex; align-items: center; justify-content: space-between;
+  display: flex; align-items: center; gap: 12px; justify-content: space-between;
   position: sticky; top: 0; z-index: 50;
 }
-.top-bar h2 { font-size: 20px; font-weight: 700; color: var(--text); }
+.top-bar h2 { font-size: 20px; font-weight: 700; color: var(--text); flex: 1; }
 .btn-toggle-sidebar {
   background: none; border: none; cursor: pointer;
-  font-size: 20px; color: var(--text2); padding: 8px;
-  transition: all .15s;
+  font-size: 22px; color: var(--text2); padding: 6px 10px;
+  border-radius: 8px; transition: all .15s;
   display: none;
 }
 .btn-toggle-sidebar:hover { color: var(--primary); }
@@ -155,6 +150,17 @@ body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); co
 }
 .top-bar-actions { display: flex; gap: 10px; align-items: center; }
 .content-area { padding: 28px; flex: 1; }
+
+/* ── MOBILE ── */
+@media (max-width: 768px) {
+  :root { --sidebar-w: 260px; }
+  .sidebar { transform: translateX(-100%); }
+  .sidebar.open { transform: translateX(0); }
+  .main-content { margin-left: 0 !important; }
+  .btn-toggle-sidebar { display: block !important; }
+  .content-area { padding: 16px; }
+  .top-bar { padding: 12px 16px; }
+}
 
 /* ── BUTTONS ── */
 .btn {
@@ -356,6 +362,7 @@ tr:hover td { background: #fdf4fb; }
      APP
 ═══════════════════════════════════════════════ -->
 <div id="app">
+  <div class="sidebar-overlay" onclick="closeSidebarMobile()"></div>
   <!-- SIDEBAR -->
   <aside class="sidebar">
     <div class="sidebar-brand">
@@ -365,42 +372,42 @@ tr:hover td { background: #fdf4fb; }
     </div>
     <nav class="sidebar-nav">
       <div class="nav-section">Principal</div>
-      <button class="nav-item active" data-page="dashboard" onclick="navigate('dashboard')">
+      <button class="nav-item active" data-page="dashboard" onclick="navigate('dashboard');closeSidebarMobile()">
         <span class="icon">🏠</span> Dashboard
       </button>
-      <button class="nav-item" data-page="agenda" onclick="navigate('agenda')">
+      <button class="nav-item" data-page="agenda" onclick="navigate('agenda');closeSidebarMobile()">
         <span class="icon">📅</span> Agenda
       </button>
-      <button class="nav-item" data-page="agendamentos" onclick="navigate('agendamentos')">
+      <button class="nav-item" data-page="agendamentos" onclick="navigate('agendamentos');closeSidebarMobile()">
         <span class="icon">📋</span> Agendamentos
       </button>
       <div class="nav-section">Cadastros</div>
-      <button class="nav-item" data-page="clientes" onclick="navigate('clientes')">
+      <button class="nav-item" data-page="clientes" onclick="navigate('clientes');closeSidebarMobile()">
         <span class="icon">👤</span> Clientes
       </button>
-      <button class="nav-item" data-page="profissionais" onclick="navigate('profissionais')">
+      <button class="nav-item" data-page="profissionais" onclick="navigate('profissionais');closeSidebarMobile()">
         <span class="icon">💆</span> Profissionais
       </button>
-      <button class="nav-item" data-page="procedimentos" onclick="navigate('procedimentos')">
+      <button class="nav-item" data-page="procedimentos" onclick="navigate('procedimentos');closeSidebarMobile()">
         <span class="icon">✨</span> Procedimentos
       </button>
-      <button class="nav-item" data-page="pacotes" onclick="navigate('pacotes')">
+      <button class="nav-item" data-page="pacotes" onclick="navigate('pacotes');closeSidebarMobile()">
         <span class="icon">📦</span> Pacotes de Sessões
       </button>
       <div class="nav-section">Gestão</div>
-      <button class="nav-item" data-page="financeiro" onclick="navigate('financeiro')">
+      <button class="nav-item" data-page="financeiro" onclick="navigate('financeiro');closeSidebarMobile()">
         <span class="icon">💰</span> Financeiro
       </button>
-      <button class="nav-item" data-page="relatorios" onclick="navigate('relatorios')">
+      <button class="nav-item" data-page="relatorios" onclick="navigate('relatorios');closeSidebarMobile()">
         <span class="icon">📊</span> Relatórios
       </button>
-      <button class="nav-item" data-page="vendas-dia" onclick="navigate('vendas-dia')">
+      <button class="nav-item" data-page="vendas-dia" onclick="navigate('vendas-dia');closeSidebarMobile()">
         <span class="icon">📈</span> Vendas por Dia
       </button>
-      <button class="nav-item" data-page="notificacoes" onclick="navigate('notificacoes')">
+      <button class="nav-item" data-page="notificacoes" onclick="navigate('notificacoes');closeSidebarMobile()">
         <span class="icon">🔔</span> Notificações
       </button>
-      <button class="nav-item" data-page="configuracoes" onclick="navigate('configuracoes')">
+      <button class="nav-item" data-page="configuracoes" onclick="navigate('configuracoes');closeSidebarMobile()">
         <span class="icon">⚙️</span> Configurações
       </button>
     </nav>
@@ -1178,7 +1185,7 @@ async function renderClientes(search='') {
             <td><span class="badge ${c.ativo?'badge-green':'badge-gray'}">${c.ativo?'Ativo':'Inativo'}</span></td>
             <td style="display:flex;gap:6px">
               <button class="btn btn-xs btn-outline" onclick="openClienteModal('${c.id}')">✏️</button>
-              <button class="btn btn-xs btn-outline" onclick="navigate('agendamentos')">📅</button>
+              <button class="btn btn-xs btn-outline" onclick="navigate('agendamentos');closeSidebarMobile()">📅</button>
               <button class="btn btn-xs btn-danger" onclick="deleteCliente('${c.id}')">🗑</button>
             </td>
           </tr>`).join('') || '<tr><td colspan="6" style="text-align:center;color:var(--text2);padding:32px">Nenhum cliente encontrado</td></tr>'}
@@ -2297,19 +2304,26 @@ async function renderNotificacoes() {
 // ═══════════════════════════════════════════════════════
 function toggleSidebar() {
   const sidebar = document.querySelector('.sidebar');
-  if (sidebar) {
+  const overlay = document.querySelector('.sidebar-overlay');
+  if (!sidebar) return;
+
+  const isMobile = window.innerWidth <= 768;
+  if (isMobile) {
+    const isOpen = sidebar.classList.toggle('open');
+    overlay && overlay.classList.toggle('active', isOpen);
+  } else {
     sidebar.classList.toggle('collapsed');
-    localStorage.setItem('sidebarCollapsed', sidebar.classList.contains('collapsed'));
   }
 }
 
-// Restore sidebar state on load
-window.addEventListener('DOMContentLoaded', () => {
+function closeSidebarMobile() {
   const sidebar = document.querySelector('.sidebar');
-  if (sidebar && localStorage.getItem('sidebarCollapsed') === 'true') {
-    sidebar.classList.add('collapsed');
+  const overlay = document.querySelector('.sidebar-overlay');
+  if (window.innerWidth <= 768) {
+    sidebar && sidebar.classList.remove('open');
+    overlay && overlay.classList.remove('active');
   }
-});
+}
 
 // ═══════════════════════════════════════════════════════
 // INIT
