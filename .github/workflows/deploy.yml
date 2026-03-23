@@ -1,0 +1,14 @@
+name: Deploy Automático — EasyPanel
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger EasyPanel Deploy
+        run: |
+          curl -s -X GET "http://187.77.32.172:3000/api/deploy/53aff47782dc96e259cb797bada21f6f757215b6c63bd5af"
+          echo "✅ Deploy triggerado com sucesso"
