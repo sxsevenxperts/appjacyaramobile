@@ -511,6 +511,15 @@ tr:hover td { background: #fdf4fb; }
         <p style="font-size:13px; color:var(--text); margin:0;">Olá! 👋 Bem-vinda ao agendamento. Qual é o seu nome completo?</p>
       </div>
     </div>
+    <!-- LGPD Consent Notice -->
+    <div style="background:#fef3c7; border:1px solid #fbbf24; border-radius:8px; padding:10px; margin-bottom:12px; font-size:11px; color:var(--text); line-height:1.4;">
+      <strong style="display:block; margin-bottom:6px;">🔒 Responsabilidade de Dados (LGPD)</strong>
+      <p style="margin:0; margin-bottom:8px;">Seus dados pessoais (nome, telefone, procedimento) serão coletados e armazenados com segurança para fins de agendamento e contato.</p>
+      <label style="display:flex; align-items:center; gap:8px; cursor:pointer; margin:0;">
+        <input type="checkbox" id="chat-lgpd-consent" style="width:16px; height:16px; cursor:pointer; accent-color:var(--primary);">
+        <span>Declaro que li e concordo com a responsabilidade sobre meus dados pessoais</span>
+      </label>
+    </div>
     <div style="display:flex; gap:8px;">
       <input type="text" id="chat-input" placeholder="Digite sua resposta..." style="flex:1; padding:10px; border:1.5px solid var(--border); border-radius:8px; font-size:14px;">
       <button onclick="enviarMensagemChat()" style="padding:10px 16px; background:var(--primary); color:white; border:none; border-radius:8px; cursor:pointer; font-weight:500;">Enviar</button>
@@ -884,6 +893,15 @@ function enviarMensagemChat() {
   const input = document.getElementById('chat-input');
   const resposta = input.value.trim();
   if (!resposta) return;
+
+  // Verificar LGPD consent apenas no primeiro passo (nome)
+  if (chatAgendamentoData.step === 'nome') {
+    const lgpdConsent = document.getElementById('chat-lgpd-consent');
+    if (!lgpdConsent || !lgpdConsent.checked) {
+      addChatMensagem('bot', '⚠️ Por favor, leia e concorde com a responsabilidade dos seus dados pessoais (LGPD) para continuar.');
+      return;
+    }
+  }
 
   addChatMensagem('cliente', resposta);
   input.value = '';
