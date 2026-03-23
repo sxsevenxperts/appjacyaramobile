@@ -1,4 +1,4 @@
-const CACHE_NAME = 'jacyara-v5';
+const CACHE_NAME = 'jacyara-v6';
 const ASSETS_TO_CACHE = [
     './manifest.json',
     './offline.html'

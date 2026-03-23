@@ -694,15 +694,57 @@ function processarChat(resposta) {
 
 async function finalizarAgendamentoChat() {
   const data = chatAgendamentoData;
-  addChatMensagem('bot', `✅ Perfeito! Agendamento criado:\n📞 ${data.nome}\n📱 ${data.telefone}\n💅 ${data.procedimento}\n📅 ${data.data} às ${data.hora}\n\nPrecisa de mais algo?`);
-
-  // Aqui entraria a lógica de salvar no banco se cliente não estiver logado
-  // Por enquanto, apenas mostra confirmação
-
-  setTimeout(() => {
-    toast('✅ Agendamento recebido! Entraremos em contato em breve!', 'success');
-    closeChatAgendamento();
-  }, 2000);
+  
+  try {
+    // Parse data e hora para formato correto
+    const [dia, mes, ano] = data.data.split('/');
+    const dataFormatada = `${ano}-${mes}-${dia}`;
+    
+    // Gerar token de confirmação único
+    const token = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+    
+    // Salvar no Supabase
+    const { data: inserted, error } = await sb.from('agendamentos_publicos').insert({
+      cliente_nome: data.nome,
+      cliente_telefone: data.telefone,
+      procedimento: data.procedimento,
+      data_agendamento: dataFormatada,
+      hora_agendamento: data.hora + ':00',
+      status: 'pendente',
+      origem: 'chat',
+      token_confirmacao: token,
+      criado_em: new Date().toISOString(),
+    });
+    
+    if (error) {
+      console.error('Erro ao salvar agendamento:', error);
+      addChatMensagem('bot', '❌ Desculpe, houve um erro ao processar seu agendamento. Por favor, tente novamente ou entre em contato conosco.');
+      return;
+    }
+    
+    // Mensagem de confirmação
+    addChatMensagem('bot', `✅ Perfeito! Seu agendamento foi criado com sucesso!\n\n📞 Nome: ${data.nome}\n📱 Telefone: ${data.telefone}\n💅 Procedimento: ${data.procedimento}\n📅 Data: ${data.data}\n🕐 Horário: ${data.hora}\n\nEnviaremos uma confirmação por WhatsApp em breve. Obrigada! 💕`);
+    
+    // Link WhatsApp para enviar mensagem de confirmação
+    const mensagem = `Olá ${data.nome}! ✨ Seu agendamento foi confirmado:\n• Procedimento: ${data.procedimento}\n• Data: ${data.data}\n• Horário: ${data.hora}\n\nConfirmação: ${token}`;
+    const whatsappLink = `https://wa.me/55${data.telefone}?text=${encodeURIComponent(mensagem)}`;
+    
+    setTimeout(() => {
+      toast('✅ Agendamento recebido! Você será contatada em breve.', 'success');
+      
+      // Após 3 segundos, abrir WhatsApp para confirmação
+      setTimeout(() => {
+        if (confirm('Deseja abrir o WhatsApp para confirmar seu agendamento?')) {
+          window.open(whatsappLink, '_blank');
+        }
+        closeChatAgendamento();
+      }, 2000);
+    }, 1500);
+    
+  } catch (err) {
+    console.error('Erro inesperado:', err);
+    addChatMensagem('bot', '❌ Ocorreu um erro. Tente novamente.');
+  }
 }
 
 // ═══════════════════════════════════════════════════════
