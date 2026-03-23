@@ -10,5 +10,5 @@ jobs:
     steps:
       - name: Trigger EasyPanel Deploy
         run: |
-          curl -s -X GET "http://187.77.32.172:3000/api/deploy/53aff47782dc96e259cb797bada21f6f757215b6c63bd5af"
-          echo "✅ Deploy triggerado com sucesso"
+          curl -s -X GET "http://187.77.32.172:3000/api/deploy/bc1e226c81ecf965b309f70feb7260ab90e31168bfe1efa3"
+          echo "Deploy triggerado com sucesso"

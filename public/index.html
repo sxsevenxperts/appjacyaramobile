@@ -1179,20 +1179,20 @@ async function renderClientes(search='') {
   document.getElementById('content-area').innerHTML = `
     <div class="table-wrap">
       <table>
-        <thead><tr><th>Nome</th><th>Telefone</th><th>E-mail</th><th>Data Nasc.</th><th>Status</th><th></th></tr></thead>
+        <thead><tr><th>Nome</th><th>Telefone</th><th>Tratamento</th><th>Fechamento</th><th>Status</th><th></th></tr></thead>
         <tbody>
           ${(data||[]).map(c => `<tr>
             <td><strong>${c.nome}</strong></td>
             <td><a href="tel:${c.telefone}" style="color:inherit;text-decoration:none">📱 ${c.telefone}</a></td>
-            <td>${c.email||'—'}</td>
-            <td>${fmtDate(c.data_nascimento)}</td>
+            <td>${c.tratamento||'—'}</td>
+            <td>${fmtDate(c.data_fechamento)}</td>
             <td><span class="badge ${c.ativo?'badge-green':'badge-gray'}">${c.ativo?'Ativo':'Inativo'}</span></td>
             <td style="display:flex;gap:6px">
               <button class="btn btn-xs btn-outline" onclick="openClienteModal('${c.id}')">✏️</button>
               <button class="btn btn-xs btn-outline" onclick="navigate('agendamentos');closeSidebarMobile()">📅</button>
               <button class="btn btn-xs btn-danger" onclick="deleteCliente('${c.id}')">🗑</button>
             </td>
-          </tr>`).join('') || '<tr><td colspan="6" style="text-align:center;color:var(--text2);padding:32px">Nenhum cliente encontrado</td></tr>'}
+          </tr>`).join('') || '<tr><td colspan="7" style="text-align:center;color:var(--text2);padding:32px">Nenhum cliente encontrado</td></tr>'}
         </tbody>
       </table>
     </div>`;
@@ -1207,11 +1207,31 @@ async function openClienteModal(id) {
   showModal(`<div class="modal">
     <h3>${id ? '✏️ Editar' : '➕ Novo'} Cliente</h3>
     <div class="form-grid">
-      <div class="form-group form-full"><label>Nome *</label><input id="c-nome" value="${c.nome||''}" placeholder="Nome completo"></div>
-      <div class="form-group"><label>Telefone / WhatsApp *</label><input id="c-tel" value="${c.telefone||''}" placeholder="(11) 99999-9999"></div>
+      <div class="form-group form-full"><label>Nome Completo *</label><input id="c-nome" value="${c.nome||''}" placeholder="Nome completo da cliente"></div>
+      <div class="form-group"><label>Celular com DDD / WhatsApp *</label><input id="c-tel" value="${c.telefone||''}" placeholder="(11) 99999-9999"></div>
       <div class="form-group"><label>E-mail</label><input id="c-email" type="email" value="${c.email||''}" placeholder="email@exemplo.com"></div>
       <div class="form-group"><label>Data de Nascimento</label><input id="c-nasc" type="date" value="${c.data_nascimento||''}"></div>
       <div class="form-group"><label>CPF</label><input id="c-cpf" value="${c.cpf||''}" placeholder="000.000.000-00"></div>
+      <div class="form-group"><label>Tratamento *</label>
+        <select id="c-tratamento" onchange="handleTreatmentChange()">
+          <option value="">Selecionar tratamento...</option>
+          <option value="Limpeza de Pele" ${c.tratamento==='Limpeza de Pele'?'selected':''}>Limpeza de Pele</option>
+          <option value="Peeling" ${c.tratamento==='Peeling'?'selected':''}>Peeling</option>
+          <option value="Microagulhamento" ${c.tratamento==='Microagulhamento'?'selected':''}>Microagulhamento</option>
+          <option value="Botox" ${c.tratamento==='Botox'?'selected':''}>Botox</option>
+          <option value="Preenchimento" ${c.tratamento==='Preenchimento'?'selected':''}>Preenchimento</option>
+          <option value="Drenagem Linfática" ${c.tratamento==='Drenagem Linfática'?'selected':''}>Drenagem Linfática</option>
+          <option value="Massagem Modeladora" ${c.tratamento==='Massagem Modeladora'?'selected':''}>Massagem Modeladora</option>
+          <option value="Depilação a Laser" ${c.tratamento==='Depilação a Laser'?'selected':''}>Depilação a Laser</option>
+          <option value="Harmonização Facial" ${c.tratamento==='Harmonização Facial'?'selected':''}>Harmonização Facial</option>
+          <option value="outro" ${c.tratamento && !['Limpeza de Pele','Peeling','Microagulhamento','Botox','Preenchimento','Drenagem Linfática','Massagem Modeladora','Depilação a Laser','Harmonização Facial'].includes(c.tratamento)?'selected':''}>Outro (descrever)</option>
+        </select>
+      </div>
+      <div class="form-group" id="custom-tratamento-group" style="display:${c.tratamento && !['','Limpeza de Pele','Peeling','Microagulhamento','Botox','Preenchimento','Drenagem Linfática','Massagem Modeladora','Depilação a Laser','Harmonização Facial'].includes(c.tratamento)?'flex':'none'}">
+        <label>Descreva o Tratamento</label>
+        <input id="c-tratamento-custom" value="${c.tratamento && !['Limpeza de Pele','Peeling','Microagulhamento','Botox','Preenchimento','Drenagem Linfática','Massagem Modeladora','Depilação a Laser','Harmonização Facial'].includes(c.tratamento)?c.tratamento:''}" placeholder="Ex: Criolipólise, Radiofrequência..." maxlength="100">
+      </div>
+      <div class="form-group"><label>Data de Fechamento</label><input id="c-fechamento" type="date" value="${c.data_fechamento||''}"></div>
       <div class="form-group form-full"><label>Endereço</label><input id="c-end" value="${c.endereco||''}" placeholder="Rua, número, bairro..."></div>
       <div class="form-group form-full"><label>Observações</label><textarea id="c-obs">${c.observacoes||''}</textarea></div>
     </div>
@@ -1222,13 +1242,32 @@ async function openClienteModal(id) {
   </div>`);
 }
 
+function handleTreatmentChange() {
+  const sel = document.getElementById('c-tratamento');
+  const customGroup = document.getElementById('custom-tratamento-group');
+  if (!sel || !customGroup) return;
+  customGroup.style.display = sel.value === 'outro' ? 'flex' : 'none';
+  if (sel.value !== 'outro') {
+    const inp = document.getElementById('c-tratamento-custom');
+    if (inp) inp.value = '';
+  }
+}
+
 async function saveCliente(id) {
+  let tratamento = document.getElementById('c-tratamento')?.value || null;
+  if (tratamento === 'outro') {
+    const customText = document.getElementById('c-tratamento-custom')?.value?.trim();
+    if (!customText) { toast('Descreva o tratamento customizado','error'); return; }
+    tratamento = customText;
+  }
   const payload = {
     nome: document.getElementById('c-nome').value.trim(),
     telefone: document.getElementById('c-tel').value.trim(),
     email: document.getElementById('c-email').value.trim() || null,
     data_nascimento: document.getElementById('c-nasc').value || null,
     cpf: document.getElementById('c-cpf').value.trim() || null,
+    tratamento: tratamento,
+    data_fechamento: document.getElementById('c-fechamento')?.value || null,
     endereco: document.getElementById('c-end').value.trim() || null,
     observacoes: document.getElementById('c-obs').value.trim() || null,
   };
