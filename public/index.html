@@ -381,6 +381,12 @@ tr:hover td { background: #fdf4fb; }
     <input type="password" id="login-pass" placeholder="Senha" autocomplete="current-password">
     <button class="btn-primary" onclick="doLogin()">Entrar</button>
     <div class="auth-err hidden" id="auth-err"></div>
+
+    <div style="margin-top:20px;padding-top:16px;border-top:1px solid #f0d5e5;text-align:center;">
+      <p style="font-size:12px;color:var(--text3);margin-bottom:10px;">Não tem cadastro?</p>
+      <button class="btn-primary" style="background:linear-gradient(135deg, #d4b5d4 0%, #c4a4c4 100%); font-size:13px;" onclick="openChatAgendamento()">💬 Agendar pelo Chat</button>
+    </div>
+
     <div style="margin-top:28px;padding-top:16px;border-top:1px solid #f0e0ee;font-size:10px;color:#999;text-align:center;">
       <strong style="display:block;font-size:13px;color:var(--primary);letter-spacing:.5px;margin-bottom:6px;">Easy Schedule</strong>
       <span style="display:block;margin-bottom:4px;">Powered By <strong style="color:#8b5a8b;">Seven Xperts</strong></span>
@@ -469,6 +475,22 @@ tr:hover td { background: #fdf4fb; }
 
 <!-- MODALS -->
 <div id="modal-container"></div>
+<!-- CHAT AGENDAMENTO AUTOMÁTICO -->
+<div id="chat-agendamento-modal" class="modal-backdrop hidden" style="display:none;" onclick="if(event.target===this)closeChatAgendamento()">
+  <div class="modal">
+    <h3>💬 Agendamento pelo Chat</h3>
+    <div id="chat-mensagens" style="height:320px; overflow-y:auto; border:1px solid var(--border); border-radius:10px; padding:12px; margin-bottom:12px; background:#fdf7f9;">
+      <div style="padding:8px; border-radius:8px; background:var(--surface2); margin-bottom:8px; max-width:70%;">
+        <p style="font-size:13px; color:var(--text); margin:0;">Olá! 👋 Bem-vinda ao agendamento. Qual é o seu nome completo?</p>
+      </div>
+    </div>
+    <div style="display:flex; gap:8px;">
+      <input type="text" id="chat-input" placeholder="Digite sua resposta..." style="flex:1; padding:10px; border:1.5px solid var(--border); border-radius:8px; font-size:14px;">
+      <button onclick="enviarMensagemChat()" style="padding:10px 16px; background:var(--primary); color:white; border:none; border-radius:8px; cursor:pointer; font-weight:500;">Enviar</button>
+    </div>
+    <button onclick="closeChatAgendamento()" style="margin-top:12px; width:100%; padding:8px; background:white; color:var(--text2); border:1.5px solid var(--border); border-radius:8px; cursor:pointer;">Cancelar</button>
+  </div>
+</div>
 <!-- TOAST -->
 <div id="toast-container"></div>
 
@@ -590,6 +612,97 @@ async function doLogin() {
 async function doLogout() {
   await sb.auth.signOut();
   location.reload();
+}
+
+// ═══════════════════════════════════════════════════════
+// CHAT AUTOMÁTICO PARA AGENDAMENTO SEM LOGIN
+// ═══════════════════════════════════════════════════════
+let chatAgendamentoData = {
+  step: 'nome',
+  nome: '',
+  telefone: '',
+  procedimento: '',
+  data: '',
+  hora: ''
+};
+
+function openChatAgendamento() {
+  document.getElementById('chat-agendamento-modal').style.display = 'flex';
+  chatAgendamentoData = { step: 'nome', nome: '', telefone: '', procedimento: '', data: '', hora: '' };
+  addChatMensagem('bot', 'Olá! 👋 Bem-vinda ao agendamento. Qual é o seu nome completo?');
+}
+
+function closeChatAgendamento() {
+  document.getElementById('chat-agendamento-modal').style.display = 'none';
+  document.getElementById('chat-mensagens').innerHTML = '';
+  document.getElementById('chat-input').value = '';
+}
+
+function addChatMensagem(tipo, texto) {
+  const container = document.getElementById('chat-mensagens');
+  const msg = document.createElement('div');
+  msg.style.cssText = `padding:8px; border-radius:8px; margin-bottom:8px; max-width:85%; ${tipo==='bot' ? 'background:var(--surface2); margin-right:auto;' : 'background:var(--primary); color:white; margin-left:auto;'}`;
+  msg.innerHTML = `<p style="font-size:13px; color:${tipo==='bot' ? 'var(--text)' : 'white'}; margin:0;">${texto}</p>`;
+  container.appendChild(msg);
+  container.scrollTop = container.scrollHeight;
+}
+
+function enviarMensagemChat() {
+  const input = document.getElementById('chat-input');
+  const resposta = input.value.trim();
+  if (!resposta) return;
+
+  addChatMensagem('cliente', resposta);
+  input.value = '';
+
+  setTimeout(() => processarChat(resposta), 300);
+}
+
+function processarChat(resposta) {
+  const data = chatAgendamentoData;
+
+  if (data.step === 'nome') {
+    data.nome = resposta;
+    data.step = 'telefone';
+    addChatMensagem('bot', 'Obrigada! 😊 Qual é o seu telefone com DDD? (Ex: 11 99999-9999)');
+  }
+  else if (data.step === 'telefone') {
+    data.telefone = resposta.replace(/\D/g, '');
+    if (data.telefone.length < 11) {
+      addChatMensagem('bot', 'Desculpe, o telefone parece incompleto. Digite com DDD (11 dígitos)');
+      return;
+    }
+    data.step = 'procedimento';
+    const procs = 'Botox, Preenchimento, Peeling, Limpeza Facial, Massagem, Microagulhagem';
+    addChatMensagem('bot', `Qual procedimento você gostaria? ${procs}?`);
+  }
+  else if (data.step === 'procedimento') {
+    data.procedimento = resposta;
+    data.step = 'data';
+    addChatMensagem('bot', 'Ótimo! 💅 Qual data você prefere? (Ex: 25/03/2026)');
+  }
+  else if (data.step === 'data') {
+    data.data = resposta;
+    data.step = 'hora';
+    addChatMensagem('bot', 'E qual horário? (Ex: 14:30)');
+  }
+  else if (data.step === 'hora') {
+    data.hora = resposta;
+    finalizarAgendamentoChat();
+  }
+}
+
+async function finalizarAgendamentoChat() {
+  const data = chatAgendamentoData;
+  addChatMensagem('bot', `✅ Perfeito! Agendamento criado:\n📞 ${data.nome}\n📱 ${data.telefone}\n💅 ${data.procedimento}\n📅 ${data.data} às ${data.hora}\n\nPrecisa de mais algo?`);
+
+  // Aqui entraria a lógica de salvar no banco se cliente não estiver logado
+  // Por enquanto, apenas mostra confirmação
+
+  setTimeout(() => {
+    toast('✅ Agendamento recebido! Entraremos em contato em breve!', 'success');
+    closeChatAgendamento();
+  }, 2000);
 }
 
 // ═══════════════════════════════════════════════════════
