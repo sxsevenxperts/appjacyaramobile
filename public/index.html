@@ -567,7 +567,29 @@
                     </div>
                     <div class="input-group">
                         <label>Procedimento</label>
-                        <input type="text" id="procedure" placeholder="Procedimento">
+                        <select id="procedure" style="width: 100%; padding: 12px 14px; border: 1.5px solid #e8d0d8; border-radius: 12px; font-size: 14px; font-family: inherit; cursor: pointer;">
+                            <option value="">Selecione um procedimento</option>
+                            <option value="limpeza-pele">Limpeza de Pele</option>
+                            <option value="micropigmentacao">Micropigmentação</option>
+                            <option value="peeling">Peeling Químico</option>
+                            <option value="laser">Depilação a Laser</option>
+                            <option value="botox">Botox</option>
+                            <option value="preenchimento">Preenchimento Facial</option>
+                            <option value="manicure">Manicure/Pedicure</option>
+                            <option value="massagem">Massagem Relaxante</option>
+                            <option value="outro">Outro</option>
+                        </select>
+                    </div>
+                    <div class="input-group">
+                        <label>Duração do Procedimento</label>
+                        <select id="appointmentDuration" style="width: 100%; padding: 12px 14px; border: 1.5px solid #e8d0d8; border-radius: 12px; font-size: 14px; font-family: inherit; cursor: pointer;">
+                            <option value="">Selecione duração</option>
+                            <option value="30">30 minutos</option>
+                            <option value="45">45 minutos</option>
+                            <option value="60">1 hora</option>
+                            <option value="90">1h30</option>
+                            <option value="120">2 horas</option>
+                        </select>
                     </div>
                     <div class="input-group">
                         <label>Data e Hora</label>
@@ -807,20 +829,104 @@
             renderCalendar();
         }
 
+        let appointments = [];
+
+        function loadAppointments() {
+            const saved = localStorage.getItem('clinicaAppointments');
+            if (saved) {
+                appointments = JSON.parse(saved);
+                renderAppointments();
+            }
+        }
+
         // Functions
         function addAppointment() {
-            const client = document.getElementById('clientName').value;
+            const client = document.getElementById('clientName').value.trim();
             const procedure = document.getElementById('procedure').value;
+            const duration = document.getElementById('appointmentDuration').value;
             const time = document.getElementById('appointmentTime').value;
 
-            if (client && procedure && time) {
-                showToast(`✅ Agendamento de ${client} criado!`);
-                document.getElementById('clientName').value = '';
-                document.getElementById('procedure').value = '';
-                document.getElementById('appointmentTime').value = '';
-            } else {
-                showToast('⚠️ Preencha todos os campos');
+            if (!client) {
+                showToast('⚠️ Nome do cliente é obrigatório');
+                return;
             }
+            if (!procedure) {
+                showToast('⚠️ Procedimento é obrigatório');
+                return;
+            }
+            if (!duration) {
+                showToast('⚠️ Duração é obrigatória');
+                return;
+            }
+            if (!time) {
+                showToast('⚠️ Data e hora são obrigatórias');
+                return;
+            }
+
+            const appointment = {
+                id: Date.now(),
+                client,
+                procedure,
+                duration: parseInt(duration),
+                time,
+                createdAt: new Date().toLocaleDateString('pt-BR'),
+                status: 'agendado'
+            };
+
+            appointments.push(appointment);
+            localStorage.setItem('clinicaAppointments', JSON.stringify(appointments));
+            renderAppointments();
+
+            showToast(`✅ Agendamento de ${client} criado! ${duration}min`);
+            document.getElementById('clientName').value = '';
+            document.getElementById('procedure').value = '';
+            document.getElementById('appointmentDuration').value = '';
+            document.getElementById('appointmentTime').value = '';
+        }
+
+        function renderAppointments() {
+            const nextDiv = document.querySelector('#agendamentos-tab .section:last-child div');
+            if (!nextDiv) return;
+
+            if (appointments.length === 0) {
+                nextDiv.innerHTML = '<div class="empty-state"><p>📅 Nenhum agendamento</p></div>';
+                return;
+            }
+
+            nextDiv.innerHTML = appointments
+                .sort((a, b) => new Date(a.time) - new Date(b.time))
+                .map(apt => {
+                    const dateObj = new Date(apt.time);
+                    const timeStr = dateObj.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+                    const dateStr = dateObj.toLocaleDateString('pt-BR');
+                    const endTime = new Date(dateObj.getTime() + apt.duration * 60000);
+                    const endTimeStr = endTime.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+
+                    return `
+                        <div class="client-card">
+                            <div class="client-name">${apt.client}</div>
+                            <div class="client-info">
+                                <div class="client-info-item">
+                                    <span class="client-info-label">📋 Procedimento:</span>
+                                    <span>${apt.procedure}</span>
+                                </div>
+                                <div class="client-info-item">
+                                    <span class="client-info-label">⏱️ Duração:</span>
+                                    <span>${apt.duration} minutos</span>
+                                </div>
+                                <div class="client-info-item">
+                                    <span class="client-info-label">📅 Data:</span>
+                                    <span>${dateStr}</span>
+                                </div>
+                                <div class="client-info-item">
+                                    <span class="client-info-label">🕐 Horário:</span>
+                                    <span>${timeStr} - ${endTimeStr}</span>
+                                </div>
+                            </div>
+                            <div class="client-treatment">${apt.status.toUpperCase()}</div>
+                        </div>
+                    `;
+                }).join('');
         }
 
         let clients = [];
@@ -1005,6 +1111,7 @@ Relatório gerado em ${new Date().toLocaleDateString('pt-BR')} às ${new Date().
         // Initialize on page load
         window.addEventListener('load', function() {
             loadClients();
+            loadAppointments();
         });
     </script>
 </body>
