@@ -1,24 +1,46 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 250" width="280" height="175">
-  <!-- Background -->
-  <rect width="400" height="250" fill="white" rx="20"/>
-  
-  <!-- Jacyara Ponte text (script style) -->
-  <text x="200" y="80" font-family="cursive" font-size="48" font-weight="300" fill="#d4a574" text-anchor="middle" letter-spacing="2">
-    Jacyara Ponte
-  </text>
-  
-  <!-- Small flower decoration -->
-  <g transform="translate(320, 70)">
-    <circle cx="0" cy="0" r="8" fill="#e8a8c8"/>
-    <circle cx="8" cy="0" r="5" fill="#d98aaf"/>
-    <circle cx="-8" cy="0" r="5" fill="#d98aaf"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 520 300" width="320" height="185">
+  <defs>
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=Great+Vibes&display=swap');
+      .main-text {
+        font-family: 'Great Vibes', 'Brush Script MT', cursive;
+        font-size: 80px;
+        font-weight: 400;
+        fill: #9B8B5C;
+        text-anchor: middle;
+      }
+      .subtitle {
+        font-family: 'Arial', sans-serif;
+        font-size: 22px;
+        font-weight: 700;
+        fill: #9B8B5C;
+        letter-spacing: 3px;
+        text-anchor: middle;
+      }
+    </style>
+  </defs>
+
+  <!-- Jacyara Ponte em cursiva elegante (ouro) -->
+  <text x="260" y="95" class="main-text">Jacyara Ponte</text>
+
+  <!-- Flor decorativa no canto superior direito -->
+  <g transform="translate(450, 65)">
+    <!-- Pétalas (6 pétalas de flor) -->
+    <ellipse cx="0" cy="-14" rx="7" ry="12" fill="#9B8B5C" opacity="0.85"/>
+    <ellipse cx="14" cy="-7" rx="12" ry="7" fill="#9B8B5C" opacity="0.85"/>
+    <ellipse cx="14" cy="7" rx="12" ry="7" fill="#9B8B5C" opacity="0.85"/>
+    <ellipse cx="0" cy="14" rx="7" ry="12" fill="#9B8B5C" opacity="0.85"/>
+    <ellipse cx="-14" cy="7" rx="12" ry="7" fill="#9B8B5C" opacity="0.85"/>
+    <ellipse cx="-14" cy="-7" rx="12" ry="7" fill="#9B8B5C" opacity="0.85"/>
+    <!-- Centro da flor -->
+    <circle cx="0" cy="0" r="6" fill="#9B8B5C"/>
+    <!-- Pequeno brilho no centro -->
+    <circle cx="-2" cy="-2" r="2" fill="#D4AF37" opacity="0.6"/>
   </g>
-  
-  <!-- Subtitle -->
-  <text x="200" y="130" font-family="Arial, sans-serif" font-size="18" font-weight="700" fill="#d4a574" text-anchor="middle" letter-spacing="3">
-    ESTÉTICA CORPORAL E FACIAL
-  </text>
-  
-  <!-- Decorative line -->
-  <line x1="80" y1="145" x2="320" y2="145" stroke="#e8a8c8" stroke-width="2"/>
+
+  <!-- Linha divisória sutil -->
+  <line x1="120" y1="155" x2="400" y2="155" stroke="#9B8B5C" stroke-width="1.2" opacity="0.4"/>
+
+  <!-- Subtítulo "ESTÉTICA CORPORAL E FACIAL" -->
+  <text x="260" y="210" class="subtitle">ESTÉTICA CORPORAL E FACIAL</text>
 </svg>
