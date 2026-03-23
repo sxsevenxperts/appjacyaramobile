@@ -34,8 +34,6 @@
     <ellipse cx="-14" cy="-7" rx="12" ry="7" fill="#9B8B5C" opacity="0.85"/>
     <!-- Centro da flor -->
     <circle cx="0" cy="0" r="6" fill="#9B8B5C"/>
-    <!-- Pequeno brilho no centro -->
-    <circle cx="-2" cy="-2" r="2" fill="#D4AF37" opacity="0.6"/>
   </g>
 
   <!-- Linha divisória sutil -->
