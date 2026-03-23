@@ -26,7 +26,8 @@
   --text: #1f1f2e;
   --text2: #6b6b8a;
   --text3: #9999b8;
-  --sidebar-w: 240px;
+  --sidebar-w: 220px;
+  --sidebar-collapsed-w: 70px;
   --radius: 12px;
   --shadow: 0 2px 12px rgba(217,70,168,0.08);
   --shadow-lg: 0 8px 32px rgba(217,70,168,0.15);
@@ -87,40 +88,65 @@ body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); co
   border-right: 1.5px solid var(--border);
   display: flex; flex-direction: column;
   z-index: 100;
-  transition: transform 0.28s ease;
+  transition: width 0.3s ease, padding 0.3s ease;
+  overflow: hidden;
+}
+.sidebar.collapsed {
+  width: var(--sidebar-collapsed-w);
 }
 .sidebar-brand {
-  padding: 20px 20px 16px;
+  padding: 14px;
   border-bottom: 1px solid var(--border);
+  text-align: center;
+  position: relative;
 }
-.brand-logo { font-size: 28px; }
-.brand-name { font-size: 15px; font-weight: 700; color: var(--primary-dark); line-height: 1.2; }
-.brand-sub { font-size: 11px; color: var(--text2); }
-.sidebar-nav { flex: 1; padding: 12px 0; overflow-y: auto; }
-.nav-section { padding: 8px 16px 4px; font-size: 10px; font-weight: 700; text-transform: uppercase; color: var(--text3); letter-spacing: .8px; }
+.brand-logo { font-size: 24px; margin-bottom: 4px; }
+.brand-name { font-size: 13px; font-weight: 700; color: var(--primary-dark); line-height: 1.2; }
+.brand-sub { font-size: 10px; color: var(--text2); }
+.sidebar.collapsed .brand-name,
+.sidebar.collapsed .brand-sub { display: none; }
+.btn-toggle-sidebar-internal {
+  position: absolute; right: 4px; top: 50%;
+  transform: translateY(-50%);
+  background: none; border: none; cursor: pointer;
+  font-size: 18px; padding: 6px; color: var(--text2);
+  opacity: 0; transition: opacity 0.2s;
+}
+.sidebar-brand:hover .btn-toggle-sidebar-internal { opacity: 1; }
+.sidebar-nav { flex: 1; padding: 8px 0; overflow-y: auto; }
+.nav-section { padding: 6px 12px 3px; font-size: 9px; font-weight: 700; text-transform: uppercase; color: var(--text3); letter-spacing: .6px; }
+.sidebar.collapsed .nav-section { display: none; }
 .nav-item {
-  display: flex; align-items: center; gap: 10px;
-  padding: 10px 16px; margin: 1px 8px;
-  border-radius: 10px; cursor: pointer;
-  font-size: 14px; color: var(--text2);
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 10px; margin: 1px 6px;
+  border-radius: 8px; cursor: pointer;
+  font-size: 13px; color: var(--text2);
   transition: all .15s; text-decoration: none;
-  border: none; background: none; width: calc(100% - 16px); text-align: left;
+  border: none; background: none; width: calc(100% - 12px); text-align: left;
 }
+.sidebar.collapsed .nav-item {
+  width: 100%; padding: 8px; margin: 1px auto; justify-content: center;
+}
+.sidebar.collapsed .nav-item span:last-child { display: none; }
 .nav-item:hover { background: var(--primary-light); color: var(--primary-dark); }
 .nav-item.active { background: var(--primary); color: white; font-weight: 600; }
 .nav-item .icon { font-size: 18px; width: 22px; text-align: center; }
 .sidebar-footer {
-  padding: 12px 16px;
+  padding: 10px 12px;
   border-top: 1px solid var(--border);
-  font-size: 13px; color: var(--text2);
+  font-size: 11px; color: var(--text2);
+  text-align: center;
 }
-.sidebar-footer strong { display: block; color: var(--text); font-size: 14px; }
+.sidebar.collapsed .sidebar-footer { padding: 6px; }
+.sidebar-footer strong { display: block; color: var(--text); font-size: 12px; }
+.sidebar.collapsed .sidebar-footer span { display: none; }
 .btn-logout {
-  margin-top: 8px; width: 100%; padding: 8px;
+  margin-top: 6px; width: 100%; padding: 6px;
   border: 1.5px solid var(--border); background: none;
-  border-radius: 8px; font-size: 13px; color: var(--text2);
+  border-radius: 6px; font-size: 11px; color: var(--text2);
   cursor: pointer; transition: all .2s;
 }
+.sidebar.collapsed .btn-logout { padding: 4px; font-size: 9px; }
 .btn-logout:hover { border-color: var(--danger); color: var(--danger); }
 
 /* desktop: sidebar sempre visível */
@@ -129,37 +155,38 @@ body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); co
   height: 100vh;
   overflow-y: auto;
   display: flex; flex-direction: column;
+  transition: margin-left 0.3s ease;
+}
+.main-content.sidebar-collapsed {
+  margin-left: var(--sidebar-collapsed-w);
 }
 .top-bar {
   background: white;
   border-bottom: 1.5px solid var(--border);
-  padding: 16px 28px;
-  display: flex; align-items: center; gap: 12px; justify-content: space-between;
+  padding: 12px 20px;
+  display: flex; align-items: center; gap: 10px; justify-content: space-between;
   position: sticky; top: 0; z-index: 50;
 }
-.top-bar h2 { font-size: 20px; font-weight: 700; color: var(--text); flex: 1; }
+.top-bar h2 { font-size: 18px; font-weight: 700; color: var(--text); flex: 1; }
 .btn-toggle-sidebar {
   background: none; border: none; cursor: pointer;
-  font-size: 22px; color: var(--text2); padding: 6px 10px;
-  border-radius: 8px; transition: all .15s;
-  display: none;
+  font-size: 20px; color: var(--text2); padding: 6px 8px;
+  border-radius: 6px; transition: all .15s;
+  display: block;
 }
 .btn-toggle-sidebar:hover { color: var(--primary); }
-@media (max-width: 768px) {
-  .btn-toggle-sidebar { display: block; }
-}
-.top-bar-actions { display: flex; gap: 10px; align-items: center; }
-.content-area { padding: 28px; flex: 1; }
+.top-bar-actions { display: flex; gap: 8px; align-items: center; }
+.content-area { padding: 20px; flex: 1; overflow-y: auto; }
 
 /* ── MOBILE ── */
 @media (max-width: 768px) {
-  :root { --sidebar-w: 260px; }
+  :root { --sidebar-w: 200px; --sidebar-collapsed-w: 60px; }
   .sidebar { transform: translateX(-100%); }
   .sidebar.open { transform: translateX(0); }
   .main-content { margin-left: 0 !important; }
-  .btn-toggle-sidebar { display: block !important; }
-  .content-area { padding: 16px; }
-  .top-bar { padding: 12px 16px; }
+  .main-content.sidebar-collapsed { margin-left: 0 !important; }
+  .content-area { padding: 14px; }
+  .top-bar { padding: 10px 14px; }
 }
 
 /* ── BUTTONS ── */
@@ -355,9 +382,10 @@ tr:hover td { background: #fdf4fb; }
     <input type="password" id="login-pass" placeholder="Senha" autocomplete="current-password">
     <button class="btn-primary" onclick="doLogin()">Entrar</button>
     <div class="auth-err hidden" id="auth-err"></div>
-    <div style="margin-top:28px;padding-top:16px;border-top:1px solid #f0e0ee;font-size:11px;color:#bba0bb;text-align:center;">
-      <strong style="display:block;font-size:13px;color:var(--primary);letter-spacing:.5px;">Easy Shedulle</strong>
-      Powered By <strong style="color:#8b5a8b;">Seven Xperts</strong>
+    <div style="margin-top:28px;padding-top:16px;border-top:1px solid #f0e0ee;font-size:10px;color:#999;text-align:center;">
+      <strong style="display:block;font-size:13px;color:var(--primary);letter-spacing:.5px;margin-bottom:6px;">Easy Shedulle</strong>
+      <span style="display:block;margin-bottom:4px;">Powered By <strong style="color:#8b5a8b;">Seven Xperts</strong></span>
+      <span style="font-size:9px;color:#aaa;">CNPJ 32.794.007/0001-19</span>
     </div>
   </div>
 </div>
@@ -373,6 +401,7 @@ tr:hover td { background: #fdf4fb; }
       <div class="brand-logo">🌸</div>
       <div class="brand-name" id="sidebar-clinic-name">Clínica Estética</div>
       <div class="brand-sub">Sistema de Agendamentos</div>
+      <button class="btn-toggle-sidebar-internal" onclick="toggleSidebarCollapse()" title="Recolher/expandir">◀</button>
     </div>
     <nav class="sidebar-nav">
       <div class="nav-section">Principal</div>
@@ -420,9 +449,10 @@ tr:hover td { background: #fdf4fb; }
       <strong id="sidebar-user-name">Carregando...</strong>
       <span id="sidebar-user-email" style="font-size:12px;color:var(--text3)"></span>
       <button class="btn-logout" onclick="doLogout()">Sair</button>
-      <div style="margin-top:16px;padding-top:12px;border-top:1px solid var(--border);font-size:11px;text-align:center;color:var(--text3);">
-        <strong style="display:block;color:var(--primary);font-size:12px;margin-bottom:4px;">Easy Shedulle</strong>
-        <span>Powered By<br><strong>Seven Xperts</strong></span>
+      <div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--border);font-size:9px;text-align:center;color:#999;">
+        <strong style="display:block;color:var(--primary);font-size:11px;margin-bottom:3px;">Easy Shedulle</strong>
+        <span style="display:block;margin-bottom:3px;">Powered By <strong>Seven Xperts</strong></span>
+        <span style="font-size:8px;">CNPJ 32.794.007/0001-19</span>
       </div>
     </div>
   </aside>
@@ -568,6 +598,17 @@ async function doLogout() {
 // ═══════════════════════════════════════════════════════
 // INIT
 // ═══════════════════════════════════════════════════════
+// Restaurar estado collapsed da sidebar
+window.addEventListener('DOMContentLoaded', () => {
+  const sidebar = document.querySelector('.sidebar');
+  const mainContent = document.querySelector('.main-content');
+  const isCollapsed = localStorage.getItem('sidebarCollapsed') === 'true';
+  if (isCollapsed && sidebar) {
+    sidebar.classList.add('collapsed');
+    mainContent && mainContent.classList.add('sidebar-collapsed');
+  }
+});
+
 sb.auth.onAuthStateChange(async (event, session) => {
   if (session?.user) {
     APP.user = session.user;
@@ -2348,14 +2389,26 @@ async function renderNotificacoes() {
 function toggleSidebar() {
   const sidebar = document.querySelector('.sidebar');
   const overlay = document.querySelector('.sidebar-overlay');
+  const mainContent = document.querySelector('.main-content');
   if (!sidebar) return;
 
   const isMobile = window.innerWidth <= 768;
   if (isMobile) {
     const isOpen = sidebar.classList.toggle('open');
     overlay && overlay.classList.toggle('active', isOpen);
-  } else {
-    sidebar.classList.toggle('collapsed');
+  }
+}
+
+function toggleSidebarCollapse() {
+  const sidebar = document.querySelector('.sidebar');
+  const mainContent = document.querySelector('.main-content');
+  if (!sidebar) return;
+
+  const isMobile = window.innerWidth <= 768;
+  if (!isMobile) {
+    const isCollapsed = sidebar.classList.toggle('collapsed');
+    mainContent && mainContent.classList.toggle('sidebar-collapsed', isCollapsed);
+    localStorage.setItem('sidebarCollapsed', isCollapsed);
   }
 }
 
