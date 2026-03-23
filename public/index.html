@@ -383,8 +383,12 @@ tr:hover td { background: #fdf4fb; }
     <div class="auth-err hidden" id="auth-err"></div>
 
     <div style="margin-top:20px;padding-top:16px;border-top:1px solid #f0d5e5;text-align:center;">
-      <p style="font-size:12px;color:var(--text3);margin-bottom:10px;">Não tem cadastro?</p>
-      <button class="btn-primary" style="background:linear-gradient(135deg, #d4b5d4 0%, #c4a4c4 100%); font-size:13px;" onclick="openChatAgendamento()">💬 Agendar pelo Chat</button>
+      <p style="font-size:12px;color:var(--text3);margin-bottom:12px;">Não tem cadastro?</p>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:12px;">
+        <button class="btn-primary" style="background:linear-gradient(135deg, #d4b5d4 0%, #c4a4c4 100%); font-size:12px;" onclick="openCriarContaCliente()">👤 Criar Conta</button>
+        <button class="btn-primary" style="background:linear-gradient(135deg, #d4b5d4 0%, #c4a4c4 100%); font-size:12px;" onclick="openChatAgendamento()">💬 Agendar Chat</button>
+      </div>
+      <p style="font-size:11px; color:var(--text3); margin:0;">Acesso rápido sem necessidade de login</p>
     </div>
 
     <div style="margin-top:28px;padding-top:16px;border-top:1px solid #f0e0ee;font-size:10px;color:#999;text-align:center;">
@@ -476,6 +480,29 @@ tr:hover td { background: #fdf4fb; }
 <!-- MODALS -->
 <div id="modal-container"></div>
 <!-- CHAT AGENDAMENTO AUTOMÁTICO -->
+<!-- MODAL: Criar Conta de Cliente -->
+<div id="criar-conta-modal" class="modal-backdrop hidden" style="display:none;" onclick="if(event.target===this)fecharCriarConta()">
+  <div class="modal" style="max-width:420px;">
+    <h3>👤 Criar Conta de Cliente</h3>
+    <p style="font-size:13px; color:var(--text2); margin-bottom:16px;">Acesse seus agendamentos e histórico com uma conta pessoal</p>
+    
+    <input type="text" id="criar-conta-nome" placeholder="Seu nome completo" style="width:100%; padding:10px; border:1.5px solid var(--border); border-radius:8px; font-size:14px; margin-bottom:10px; box-sizing:border-box;">
+    <input type="email" id="criar-conta-email" placeholder="Seu e-mail" style="width:100%; padding:10px; border:1.5px solid var(--border); border-radius:8px; font-size:14px; margin-bottom:10px; box-sizing:border-box;">
+    <input type="tel" id="criar-conta-telefone" placeholder="Telefone (opcional)" style="width:100%; padding:10px; border:1.5px solid var(--border); border-radius:8px; font-size:14px; margin-bottom:14px; box-sizing:border-box;">
+    
+    <div id="criar-conta-erro" class="hidden" style="color:var(--danger); font-size:12px; margin-bottom:10px; padding:8px; background:#ffe5e5; border-radius:6px;"></div>
+    
+    <div style="display:flex; gap:8px;">
+      <button onclick="executarCriarConta()" style="flex:1; padding:12px; background:var(--primary); color:white; border:none; border-radius:8px; cursor:pointer; font-weight:600; font-size:14px;">Criar Conta</button>
+      <button onclick="fecharCriarConta()" style="flex:1; padding:12px; background:white; color:var(--text2); border:1.5px solid var(--border); border-radius:8px; cursor:pointer; font-weight:500;">Cancelar</button>
+    </div>
+    
+    <p style="font-size:11px; color:var(--text3); margin-top:12px; text-align:center;">
+      💡 A senha será gerada automaticamente e enviada para seu e-mail
+    </p>
+  </div>
+</div>
+
 <div id="chat-agendamento-modal" class="modal-backdrop hidden" style="display:none;" onclick="if(event.target===this)closeChatAgendamento()">
   <div class="modal">
     <h3>💬 Agendamento pelo Chat</h3>
@@ -612,6 +639,131 @@ async function doLogin() {
 async function doLogout() {
   await sb.auth.signOut();
   location.reload();
+}
+
+// ═══════════════════════════════════════════════════════
+// CRIAR CONTA DE CLIENTE VIA LOGIN PAGE
+// ═══════════════════════════════════════════════════════
+function openCriarContaCliente() {
+  document.getElementById('criar-conta-modal').classList.remove('hidden');
+  document.getElementById('criar-conta-modal').style.display = 'flex';
+  document.getElementById('criar-conta-nome').value = '';
+  document.getElementById('criar-conta-email').value = '';
+  document.getElementById('criar-conta-telefone').value = '';
+  document.getElementById('criar-conta-erro').innerHTML = '';
+  document.getElementById('criar-conta-erro').classList.add('hidden');
+}
+
+function fecharCriarConta() {
+  document.getElementById('criar-conta-modal').classList.add('hidden');
+  document.getElementById('criar-conta-modal').style.display = 'none';
+}
+
+async function executarCriarConta() {
+  const nome = document.getElementById('criar-conta-nome').value.trim();
+  const email = document.getElementById('criar-conta-email').value.trim();
+  const telefone = document.getElementById('criar-conta-telefone').value.trim();
+  const erroEl = document.getElementById('criar-conta-erro');
+  
+  // Validar
+  if (!nome) {
+    erroEl.innerHTML = '❌ Por favor, digite seu nome completo';
+    erroEl.classList.remove('hidden');
+    return;
+  }
+  if (!email || !email.includes('@')) {
+    erroEl.innerHTML = '❌ Por favor, digite um e-mail válido';
+    erroEl.classList.remove('hidden');
+    return;
+  }
+  
+  // Chamar função de criação
+  await criarContaClienteLogin(nome, email, telefone);
+}
+
+async function criarContaClienteLogin(nome, email, telefone) {
+  const erroEl = document.getElementById('criar-conta-erro');
+  
+  try {
+    erroEl.innerHTML = '';
+    erroEl.classList.add('hidden');
+    
+    // Gerar senha
+    const senhaGerada = Math.random().toString(36).substring(2, 8) + Math.random().toString(36).substring(2, 8);
+    
+    // Criar conta
+    const { data: authData, error: authError } = await sb.auth.signUp({
+      email: email,
+      password: senhaGerada,
+      options: {
+        data: {
+          nome: nome,
+          telefone: telefone
+        }
+      }
+    });
+    
+    if (authError) {
+      if (authError.message.includes('already registered')) {
+        erroEl.innerHTML = '⚠️ Esse e-mail já está registrado. Use outro e-mail ou faça login.';
+      } else {
+        erroEl.innerHTML = '❌ Erro: ' + authError.message;
+      }
+      erroEl.classList.remove('hidden');
+      return;
+    }
+    
+    // Criar profile
+    const { error: profileError } = await sb.from('profiles').insert({
+      id: authData.user.id,
+      nome: nome,
+      email: email,
+      telefone: telefone,
+      role: 'cliente'
+    });
+    
+    if (profileError) {
+      console.error('Erro ao criar perfil:', profileError);
+      erroEl.innerHTML = '⚠️ Conta criada, mas houve um erro. Entre em contato.';
+      erroEl.classList.remove('hidden');
+      return;
+    }
+    
+    // Sucesso!
+    toast('✅ Conta criada com sucesso!', 'success');
+    
+    // Mostrar modal com credenciais
+    setTimeout(() => {
+      showModal(`<div class="modal" style="max-width:420px;text-align:center">
+        <div style="font-size:40px;margin-bottom:16px">✅</div>
+        <h3 style="margin-bottom:8px">Conta Criada!</h3>
+        <p style="color:var(--text2);margin-bottom:16px">Suas credenciais foram geradas:</p>
+        
+        <div style="background:var(--surface2);padding:16px;border-radius:10px;margin-bottom:16px;text-align:left">
+          <p style="font-size:12px;color:var(--text3);margin:0 0 4px 0">📧 E-mail:</p>
+          <p style="font-size:14px;font-weight:bold;margin:0 0 12px 0">${email}</p>
+          
+          <p style="font-size:12px;color:var(--text3);margin:0 0 4px 0">🔐 Senha:</p>
+          <p style="font-size:14px;font-weight:bold;margin:0;font-family:monospace;word-break:break-all">${senhaGerada}</p>
+        </div>
+        
+        <p style="font-size:12px;color:var(--danger);margin-bottom:16px">
+          ⚠️ Guarde sua senha em local seguro!
+        </p>
+        
+        <button class="btn btn-primary" onclick="closeModal();document.getElementById('login-email').focus();" style="width:100%;padding:12px;background:var(--primary);color:white;border:none;border-radius:8px;cursor:pointer;font-weight:bold;">
+          Fazer Login Agora
+        </button>
+      </div>`);
+      
+      fecharCriarConta();
+    }, 800);
+    
+  } catch (err) {
+    console.error('Erro inesperado:', err);
+    erroEl.innerHTML = '❌ Erro inesperado. Tente novamente.';
+    erroEl.classList.remove('hidden');
+  }
 }
 
 // ═══════════════════════════════════════════════════════
