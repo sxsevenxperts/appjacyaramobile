@@ -14,6 +14,7 @@ import { Ionicons } from '@expo/vector-icons'
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { supabase } from '../services/supabaseClient'
+import { generateWhatsAppLink, renderTemplate } from '../services/whatsappService'
 
 export default function AgendamentosScreen() {
   const [view, setView] = useState<'day' | 'week' | 'month'>('month')
@@ -68,6 +69,27 @@ export default function AgendamentosScreen() {
       fetchAppointments()
     } catch (error) {
       console.error('Error adding appointment:', error)
+    }
+  }
+
+  const sendConfirmationMessage = (appointment: any) => {
+    const message = renderTemplate('APPOINTMENT_CONFIRMATION', {
+      cliente_nome: appointment.cliente_nome || appointment.procedimento,
+      data: format(selectedDate, "d 'de' MMMM", { locale: ptBR }),
+      horario: appointment.hora,
+      procedimento: appointment.procedimento,
+      endereco: 'Clínica Estética Jacyara Ponte',
+    })
+
+    const whatsappLink = generateWhatsAppLink(
+      appointment.cliente_telefone || '5585999999999', // Default placeholder
+      message
+    )
+
+    // Abrir WhatsApp ou link
+    if (whatsappLink) {
+      // Em React Native real, usar Linking.openURL(whatsappLink)
+      alert(`Mensagem para enviar:\n\n${message}\n\nClique em OK para abrir WhatsApp`)
     }
   }
 
@@ -176,8 +198,12 @@ export default function AgendamentosScreen() {
               <Text style={styles.appointmentService}>{item.procedimento}</Text>
               <Text style={styles.appointmentStatus}>{item.status}</Text>
             </View>
-            <TouchableOpacity style={styles.moreButton}>
-              <Ionicons name="ellipsis-vertical" size={20} color="#a0a0a0" />
+            <TouchableOpacity
+              style={styles.confirmButton}
+              onPress={() => sendConfirmationMessage(item)}
+              title="Confirmar via WhatsApp"
+            >
+              <Ionicons name="logo-whatsapp" size={20} color="#25d366" />
             </TouchableOpacity>
           </View>
         )}
@@ -460,6 +486,13 @@ const styles = StyleSheet.create({
   },
   moreButton: {
     padding: 8,
+  },
+  confirmButton: {
+    padding: 10,
+    backgroundColor: '#e8f5e9',
+    borderRadius: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   emptyState: {
     alignItems: 'center',

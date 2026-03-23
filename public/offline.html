@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Offline - Clínica Estética Jacyara Ponte</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+            background: linear-gradient(135deg, #8b4d7a 0%, #a0758a 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #333;
+        }
+
+        .offline-container {
+            background: white;
+            padding: 40px 30px;
+            border-radius: 16px;
+            text-align: center;
+            max-width: 400px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+        }
+
+        .offline-icon {
+            font-size: 64px;
+            margin-bottom: 20px;
+        }
+
+        h1 {
+            color: #8b4d7a;
+            margin-bottom: 12px;
+            font-size: 24px;
+        }
+
+        p {
+            color: #666;
+            margin-bottom: 24px;
+            line-height: 1.6;
+        }
+
+        .status {
+            background-color: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 12px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+            text-align: left;
+            font-size: 13px;
+            color: #856404;
+        }
+
+        button {
+            background-color: #8b4d7a;
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+
+        button:hover {
+            background-color: #7a3f6a;
+        }
+
+        .tips {
+            text-align: left;
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #eee;
+        }
+
+        .tips h3 {
+            font-size: 14px;
+            color: #8b4d7a;
+            margin-bottom: 10px;
+        }
+
+        .tips ul {
+            list-style: none;
+            font-size: 13px;
+            color: #666;
+            line-height: 1.8;
+        }
+
+        .tips li:before {
+            content: "✓ ";
+            color: #4caf50;
+            font-weight: bold;
+            margin-right: 8px;
+        }
+    </style>
+</head>
+<body>
+    <div class="offline-container">
+        <div class="offline-icon">📡</div>
+        <h1>Sem Conexão</h1>
+        <p>Você está offline no momento. Algumas funcionalidades podem estar limitadas.</p>
+
+        <div class="status">
+            ⚠️ Conecte-se à internet para sincronizar dados e acessar todas as funcionalidades.
+        </div>
+
+        <button onclick="location.reload()">🔄 Tentar Novamente</button>
+
+        <div class="tips">
+            <h3>Você pode fazer offline:</h3>
+            <ul>
+                <li>Visualizar agendamentos em cache</li>
+                <li>Ver dados de clientes salvos</li>
+                <li>Ler relatórios anteriores</li>
+                <li>Verificar histórico</li>
+            </ul>
+        </div>
+
+        <p style="margin-top: 30px; font-size: 12px; color: #999;">
+            Quando sua conexão for restaurada, os dados serão sincronizados automaticamente.
+        </p>
+    </div>
+
+    <script>
+        window.addEventListener('online', () => {
+            console.log('✅ Conexão restaurada!');
+            setTimeout(() => location.reload(), 500);
+        });
+    </script>
+</body>
+</html>
