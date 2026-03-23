@@ -1048,10 +1048,29 @@ async function finalizarAgendamentoChat() {
     
     if (data.clienteId) {
       mensagem += `✨ Agendamento confirmado em nossa agenda!\n`;
+
+      // Enviar notificação de confirmação para cliente verificado
+      try {
+        const { data: clienteFull } = await sb.from('clientes')
+          .select('*')
+          .eq('id', data.clienteId)
+          .single();
+
+        if (clienteFull) {
+          const dadosAjuste = {
+            tratamento: data.procedimento,
+            data: data.data,
+            hora: data.hora
+          };
+          await enviarNotificacaoMotivacional(clienteFull, 'confirmacao_agendamento', dadosAjuste);
+        }
+      } catch (notifyErr) {
+        console.log('Notificação não enviada (cliente pode não permitir):', notifyErr);
+      }
     } else {
       mensagem += `⚠️ IMPORTANTE: Você precisa confirmar este agendamento clicando no botão abaixo!\n`;
     }
-    
+
     addChatMensagem('bot', mensagem);
     
     // Mensagem para confirmar agendamento no WhatsApp da clínica
@@ -1701,29 +1720,72 @@ async function updateAgendamento(id) {
 }
 
 async function confirmarAgendamento(id) {
-  await sb.from('agendamentos').update({ status:'confirmado' }).eq('id', id);
-  closeModal(); toast('Agendamento confirmado!');
-  navigate(APP.currentPage);
+  try {
+    // Buscar dados do agendamento
+    const { data: agendamento } = await sb.from('agendamentos')
+      .select('*, clientes(nome, email, telefone)')
+      .eq('id', id)
+      .single();
+
+    // Confirmar agendamento
+    await sb.from('agendamentos').update({ status:'confirmado' }).eq('id', id);
+
+    // Enviar notificação de confirmação se cliente existe
+    if (agendamento?.clientes) {
+      const cliente = agendamento.clientes;
+      const dadosAjuste = {
+        tratamento: agendamento.procedimento_nome || 'procedimento',
+        data: new Date(agendamento.data_horario).toLocaleDateString('pt-BR'),
+        hora: new Date(agendamento.data_horario).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+      };
+      await enviarNotificacaoMotivacional(cliente, 'confirmacao_agendamento', dadosAjuste);
+    }
+
+    closeModal(); toast('Agendamento confirmado!');
+    navigate(APP.currentPage);
+  } catch (err) {
+    console.error('Erro ao confirmar agendamento:', err);
+    toast('Erro ao confirmar agendamento', 'error');
+  }
 }
 
 async function concluirAgendamento(id) {
-  const { data: ag } = await sb.from('agendamentos').select('*').eq('id', id).single();
-  await sb.from('agendamentos').update({ status:'concluido' }).eq('id', id);
-  if (ag?.pacote_id) {
-    const { data: pac } = await sb.from('pacotes_cliente').select('*').eq('id', ag.pacote_id).single();
-    if (pac) {
-      const novas = pac.sessoes_utilizadas + 1;
-      const newStatus = novas >= pac.total_sessoes ? 'concluido' : 'ativo';
-      await sb.from('pacotes_cliente').update({ sessoes_utilizadas: novas, status: newStatus }).eq('id', pac.id);
+  try {
+    const { data: ag } = await sb.from('agendamentos').select('*, clientes(nome, email, telefone)').eq('id', id).single();
+
+    await sb.from('agendamentos').update({ status:'concluido' }).eq('id', id);
+
+    if (ag?.pacote_id) {
+      const { data: pac } = await sb.from('pacotes_cliente').select('*').eq('id', ag.pacote_id).single();
+      if (pac) {
+        const novas = pac.sessoes_utilizadas + 1;
+        const newStatus = novas >= pac.total_sessoes ? 'concluido' : 'ativo';
+        await sb.from('pacotes_cliente').update({ sessoes_utilizadas: novas, status: newStatus }).eq('id', pac.id);
+      }
     }
+
+    // Enviar notificações baseadas no progresso do cliente
+    if (ag?.cliente_id && ag?.clientes) {
+      const cliente = ag.clientes;
+
+      // Verificar continuidade (3 procedimentos restantes para 12)
+      await verificarContinuidadeTratamento(ag.cliente_id);
+
+      // Verificar conclusão de protocolo (12 procedimentos)
+      await notificarConclusaoProtocolo(ag.cliente_id);
+    }
+
+    closeModal();
+    toast('Agendamento concluído!');
+
+    // Abrir modal de avaliação
+    setTimeout(() => {
+      abrirAvaliacaoAtendimento(id, ag?.cliente_id, ag?.profissional_id);
+    }, 800);
+  } catch (err) {
+    console.error('Erro ao concluir agendamento:', err);
+    toast('Erro ao concluir agendamento', 'error');
   }
-  closeModal(); 
-  toast('Agendamento concluído!');
-  
-  // Abrir modal de avaliação
-  setTimeout(() => {
-    abrirAvaliacaoAtendimento(id, ag?.cliente_id, ag?.profissional_id);
-  }, 800);
 }
 
 async function cancelarAgendamento(id) {
@@ -3133,29 +3195,226 @@ async function renderNotificacoes() {
 
   const { data: agendamentos } = await sb.from('agendamentos')
     .select(`*, clientes(nome, telefone), procedimentos(nome)`)
-    .gte('data_hora', hoje)
-    .lte('data_hora', proximosDias + 'T23:59:59')
-    .eq('status', 'agendado')
-    .order('data_hora');
+    .gte('data_horario', hoje)
+    .lte('data_horario', proximosDias + 'T23:59:59')
+    .eq('status', 'confirmado')
+    .order('data_horario');
+
+  // Buscar histórico de notificações enviadas
+  const { data: historicoNotificacoes } = await sb.from('cliente_mensagens_motivacionais')
+    .select('*')
+    .gte('created_at', new Date(Date.now() - 30*24*60*60*1000).toISOString())
+    .order('created_at', { ascending: false })
+    .limit(100);
 
   document.getElementById('content-area').innerHTML = `
-    <div style="display:grid;gap:12px">
-      ${(agendamentos || []).length === 0 ?
-        '<div style="padding:32px;text-align:center;color:var(--text2)">Nenhuma notificação pendente</div>' :
-        (agendamentos || []).map(a => `
-          <div style="background:white;border:1.5px solid var(--border);border-radius:12px;padding:16px;display:flex;justify-content:space-between;align-items:center">
-            <div>
-              <div style="font-weight:600;color:var(--text)">${a.clientes?.nome || 'Cliente'}</div>
-              <div style="font-size:13px;color:var(--text2)">${a.procedimentos?.nome || a.procedimento_nome_custom || 'Procedimento'}</div>
-              <div style="font-size:12px;color:var(--text3)">${new Date(a.data_hora).toLocaleDateString('pt-BR', {weekday:'short', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit'})}</div>
-            </div>
-            <button class="btn btn-sm btn-primary-sm" onclick="sendWhatsApp('${(a.clientes?.telefone || '').replace(/'/g, "&#39;")}')">
+    <div style="display:grid;gap:20px">
+      <!-- Painel de Controle de Notificações -->
+      <div style="background:linear-gradient(135deg, #667eea 0%, #764ba2 100%);border-radius:12px;padding:20px;color:white">
+        <h3 style="margin:0 0 16px 0;font-size:18px">🔔 Gerenciador de Notificações Push</h3>
+
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px">
+          <div style="background:rgba(255,255,255,0.15);border-radius:8px;padding:12px;backdrop-filter:blur(10px)">
+            <div style="font-size:12px;opacity:0.9;margin-bottom:8px">📤 Enviar Lembretes</div>
+            <button class="btn btn-sm" style="width:100%;background:white;color:#667eea;border:none;font-weight:bold" onclick="triggerNotificacao('lembretes24h')">
+              Lembretes 24h
+            </button>
+            <div style="font-size:11px;margin-top:6px;opacity:0.8">Clientes com agendamento amanhã</div>
+          </div>
+
+          <div style="background:rgba(255,255,255,0.15);border-radius:8px;padding:12px;backdrop-filter:blur(10px)">
+            <div style="font-size:12px;opacity:0.9;margin-bottom:8px">💕 Motivacionais</div>
+            <button class="btn btn-sm" style="width:100%;background:white;color:#667eea;border:none;font-weight:bold" onclick="triggerNotificacao('motivacionais')">
+              Enviar Agora
+            </button>
+            <div style="font-size:11px;margin-top:6px;opacity:0.8">Clientes inativos (variadas)</div>
+          </div>
+
+          <div style="background:rgba(255,255,255,0.15);border-radius:8px;padding:12px;backdrop-filter:blur(10px)">
+            <div style="font-size:12px;opacity:0.9;margin-bottom:8px">⏳ Pacotes Vencendo</div>
+            <button class="btn btn-sm" style="width:100%;background:white;color:#667eea;border:none;font-weight:bold" onclick="triggerNotificacao('pacotes')">
+              Verificar
+            </button>
+            <div style="font-size:11px;margin-top:6px;opacity:0.8">2 semanas para vencimento</div>
+          </div>
+
+          <div style="background:rgba(255,255,255,0.15);border-radius:8px;padding:12px;backdrop-filter:blur(10px)">
+            <div style="font-size:12px;opacity:0.9;margin-bottom:8px">💔 Inativos</div>
+            <button class="btn btn-sm" style="width:100%;background:white;color:#667eea;border:none;font-weight:bold" onclick="triggerNotificacao('inativos')">
               Notificar
             </button>
+            <div style="font-size:11px;margin-top:6px;opacity:0.8">Sem agendamento há 30 dias</div>
           </div>
-        `).join('')}
+
+          <div style="background:rgba(255,255,255,0.15);border-radius:8px;padding:12px;backdrop-filter:blur(10px)">
+            <div style="font-size:12px;opacity:0.9;margin-bottom:8px">🎂 Aniversários</div>
+            <button class="btn btn-sm" style="width:100%;background:white;color:#667eea;border:none;font-weight:bold" onclick="triggerNotificacao('aniversarios')">
+              Enviar
+            </button>
+            <div style="font-size:11px;margin-top:6px;opacity:0.8">Clientes de aniversário</div>
+          </div>
+
+          <div style="background:rgba(255,255,255,0.15);border-radius:8px;padding:12px;backdrop-filter:blur(10px)">
+            <div style="font-size:12px;opacity:0.9;margin-bottom:8px">✨ Limpeza Facial</div>
+            <button class="btn btn-sm" style="width:100%;background:white;color:#667eea;border:none;font-weight:bold" onclick="triggerNotificacao('limpezafacial')">
+              Recomendar
+            </button>
+            <div style="font-size:11px;margin-top:6px;opacity:0.8">Recomendação 30-45 dias</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Agendamentos Próximos (7 dias) -->
+      <div style="background:white;border-radius:12px;border:1.5px solid var(--border);padding:16px">
+        <h3 style="margin:0 0 12px 0;font-size:16px">📅 Próximos Agendamentos (7 dias)</h3>
+
+        ${(agendamentos || []).length === 0 ?
+          '<div style="padding:20px;text-align:center;color:var(--text2);font-size:14px">Nenhum agendamento próximo</div>' :
+          (agendamentos || []).map(a => `
+            <div style="background:#f8f9fa;border-left:4px solid #667eea;border-radius:6px;padding:12px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center">
+              <div>
+                <div style="font-weight:600;color:var(--text)">${a.clientes?.nome || 'Cliente'}</div>
+                <div style="font-size:13px;color:var(--text2)">${a.procedimentos?.nome || 'Procedimento'}</div>
+                <div style="font-size:12px;color:var(--text3)">
+                  ${new Date(a.data_horario).toLocaleDateString('pt-BR', {weekday:'short', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit'})}
+                </div>
+              </div>
+              <button class="btn btn-sm btn-success-sm" onclick="enviarLembreteManual('${a.cliente_id}', '${(a.clientes?.nome || '').replace(/'/g, "&#39;")}', '${a.procedimentos?.nome || 'procedimento'}')" style="border:none;padding:8px 12px;cursor:pointer">
+                ✓ Confirmar
+              </button>
+            </div>
+          `).join('')}
+      </div>
+
+      <!-- Histórico de Notificações -->
+      <div style="background:white;border-radius:12px;border:1.5px solid var(--border);padding:16px">
+        <h3 style="margin:0 0 12px 0;font-size:16px">📊 Histórico (últimos 30 dias)</h3>
+
+        <div style="display:grid;gap:8px;max-height:400px;overflow-y:auto">
+          ${(historicoNotificacoes || []).slice(0, 20).map(notif => `
+            <div style="background:#f8f9fa;border-radius:6px;padding:10px;font-size:12px;border-left:3px solid #4CAF50">
+              <div style="font-weight:600;color:var(--text)">${notif.titulo || 'Notificação'}</div>
+              <div style="color:var(--text2);margin:4px 0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${notif.body || ''}</div>
+              <div style="color:var(--text3);font-size:11px">${new Date(notif.created_at || notif.data_exibicao).toLocaleDateString('pt-BR')}</div>
+            </div>
+          `).join('')}
+          ${(!historicoNotificacoes || historicoNotificacoes.length === 0) ?
+            '<div style="text-align:center;color:var(--text2);padding:20px">Nenhuma notificação enviada ainda</div>' : ''}
+        </div>
+      </div>
     </div>
   `;
+}
+
+// Verificar recomendação de limpeza facial periódica (30-45 dias)
+async function verificarLimpezaFacialPeriodica() {
+  try {
+    // Buscar todos os clientes
+    const { data: clientes } = await sb.from('clientes')
+      .select('*');
+
+    let recomendacoes = 0;
+
+    for (const cliente of clientes || []) {
+      // Buscar último procedimento facial de "Limpeza de Pele"
+      const { data: ultimaLimpeza } = await sb.from('agendamentos')
+        .select('*')
+        .eq('cliente_id', cliente.id)
+        .ilike('procedimento_nome', '%Limpeza de Pele%')
+        .eq('status', 'concluido')
+        .order('data_horario', { ascending: false })
+        .limit(1)
+        .single();
+
+      if (ultimaLimpeza) {
+        const dataUltima = new Date(ultimaLimpeza.data_horario);
+        const diasDesdeUltima = Math.floor((Date.now() - dataUltima) / (24*60*60*1000));
+
+        // Se passou de 30 dias desde última limpeza, recomendar (agendar próxima por volta de 35-40 dias)
+        if (diasDesdeUltima >= 35 && diasDesdeUltima < 60) {
+          const msgRecomendacao = {
+            title: "✨ Hora da Limpeza Facial!",
+            body: "{NOME}, já faz {DIAS} dias desde sua última limpeza facial profunda. O ideal é fazer a cada 30-45 dias! Reserve seu lugar agora! 🧖‍♀️"
+          };
+
+          const dadosAjuste = { dias: diasDesdeUltima };
+          const enviado = await enviarNotificacao(cliente, msgRecomendacao, 'recomendacao', dadosAjuste);
+
+          if (enviado) recomendacoes++;
+        }
+      }
+    }
+
+    console.log(`✅ ${recomendacoes} recomendações de limpeza facial enviadas`);
+    return { recomendacoes };
+  } catch (err) {
+    console.error('Erro ao verificar limpeza facial periódica:', err);
+    return { recomendacoes: 0 };
+  }
+}
+
+// Função para disparar notificações do painel
+async function triggerNotificacao(tipo) {
+  const btnOriginal = event.target;
+  btnOriginal.disabled = true;
+  btnOriginal.textContent = '⏳ Processando...';
+
+  try {
+    let resultado;
+    switch(tipo) {
+      case 'lembretes24h':
+        resultado = await enviarLembretes24hAntes();
+        toast(`✅ ${resultado.enviadas || 0} lembretes enviados`, 'success');
+        break;
+      case 'motivacionais':
+        resultado = await enviarMensagensMotivacionais();
+        toast(`✅ ${resultado.enviadas || 0} motivacionais enviadas`, 'success');
+        break;
+      case 'pacotes':
+        resultado = await verificarPacotesVencendo();
+        toast(`✅ ${resultado.avisos || 0} avisos enviados`, 'success');
+        break;
+      case 'inativos':
+        resultado = await verificarClientesInativos(30);
+        toast(`✅ ${resultado.avisos || 0} clientes notificados`, 'success');
+        break;
+      case 'aniversarios':
+        resultado = await verificarAniversarios();
+        toast(`✅ ${resultado.parabenizados || 0} parabenizados`, 'success');
+        break;
+      case 'limpezafacial':
+        resultado = await verificarLimpezaFacialPeriodica();
+        toast(`✅ ${resultado.recomendacoes || 0} recomendações de limpeza enviadas`, 'success');
+        break;
+    }
+    await renderNotificacoes();
+  } catch (err) {
+    console.error('Erro ao disparar notificação:', err);
+    toast('Erro ao enviar notificações', 'error');
+  } finally {
+    btnOriginal.disabled = false;
+    btnOriginal.textContent = evento.target.textContent = (tipo === 'lembretes24h' ? '24h' : 'Enviar') + ' Agora';
+  }
+}
+
+// Função para enviar lembrete manual a um cliente
+async function enviarLembreteManual(clienteId, nomeCliente, procedimento) {
+  try {
+    const { data: cliente } = await sb.from('clientes')
+      .select('*')
+      .eq('id', clienteId)
+      .single();
+
+    if (cliente) {
+      const dadosAjuste = { tratamento: procedimento };
+      await enviarNotificacaoMotivacional(cliente, 'lembrete_24h', dadosAjuste);
+      toast(`✅ Lembrete enviado para ${nomeCliente}`, 'success');
+      await renderNotificacoes();
+    }
+  } catch (err) {
+    console.error('Erro ao enviar lembrete:', err);
+    toast('Erro ao enviar lembrete', 'error');
+  }
 }
 
 
@@ -3198,83 +3457,239 @@ function closeSidebarMobile() {
 }
 
 // ═══════════════════════════════════════════════════════
-// MENSAGENS MOTIVACIONAIS (PUSH NOTIFICATIONS)
+// MENSAGENS DO SISTEMA (PUSH NOTIFICATIONS)
 // ═══════════════════════════════════════════════════════
 
-const MENSAGENS_MOTIVACIONAIS = {
-  volta_agendamento: [
-    { title: "💕 Sentimos sua falta!", body: "Olá {NOME}! Está na hora de agendar seu próximo procedimento de {TRATAMENTO}." },
-    { title: "✨ Continue seu tratamento!", body: "{NOME}, seus resultados dependem da continuidade! Que tal retomar os {TRATAMENTO}?" },
-    { title: "🌟 Vamos voltar?", body: "Você estava progredindo muito bem! Que tal retomar seu tratamento de {TRATAMENTO}?" },
-    { title: "💆 Autocuidado", body: "{NOME}, a beleza e saúde da pele precisam de cuidados contínuos. Marque seu próximo!" },
-    { title: "🎯 Resultados garantidos", body: "Você merece manter os resultados! Agende seu próximo {TRATAMENTO}." }
-  ],
-  continuidade_tratamento: [
-    { title: "⚠️ Você está quase lá!", body: "{NOME}! Faltam apenas 3 procedimentos para completar seu tratamento! 🎉" },
-    { title: "🚀 Reta final!", body: "{NOME}, faltam 3 sessões! Continuidade é essencial para manter os resultados! 💪" },
-    { title: "💪 Progresso incrível!", body: "{NOME}, você já fez ótimo progresso! Faltam 3 para conclusão do protocolo." },
-    { title: "✅ Não pare agora!", body: "Parabéns {NOME}! Faltam apenas 3 sessões. Os resultados dependem da continuidade! 🌟" }
-  ]
+// Mensagens motivacionais: Sem repetição - cada cliente recebe uma diferente
+// Categorias de procedimentos para personalização
+const CATEGORIAS_PROCEDIMENTOS = {
+  corpo: ['Ultrassom Ultracavitação', 'Pump Up', 'Radiofrequência', 'Carboxiterapia', 'Drenagem', 'Massagem'],
+  facial: ['Peeling', 'Limpeza de Pele', 'Hidratação facial', 'Avaliação Especializada']
 };
 
+// Mensagens motivacionais para procedimentos de corpo (foco: treinamento, alimentação, hidratação)
+const MENSAGENS_CORPO = [
+  { title: "💕 Sentimos sua falta!", body: "Olá {NOME}! Está na hora de continuar com {TRATAMENTO}. Lembre-se: consistência + hidratação = resultados incríveis! 💪💧" },
+  { title: "🌟 Seu corpo agradece!", body: "{NOME}, seus músculos pedem continuidade! {TRATAMENTO} a cada semana + hidratação em dia = transformação! 🙌" },
+  { title: "🎯 Resultados em movimento", body: "Está na hora! {TRATAMENTO} com {TRATAMENTO}. Não esqueça: alimente bem, durma bem, hidrate sempre! 💪✨" },
+  { title: "💪 Força e disciplina", body: "{NOME}, a combinação perfeita é treino + nutrição + {TRATAMENTO}! Vamos retomar? 🔥" },
+  { title: "✨ Seu potencial máximo", body: "Você estava evoluindo! {TRATAMENTO} + alimentação saudável + bastante água = corpo dos sonhos! Agende já!" },
+  { title: "🌊 Hidratação = Resultados", body: "{NOME}, beba 3L de água por dia e volte com {TRATAMENTO}! A pele e o corpo pedem continuidade! 💧" },
+  { title: "🏆 Campeão de si mesmo", body: "Que tal voltar com tudo? {TRATAMENTO} + exercício + hidratação = sucesso garantido! Agenda aberta para você! 🎯" }
+];
+
+// Mensagens motivacionais para procedimentos faciais (foco: hidratação, protetor solar, limpeza periódica)
+const MENSAGENS_FACIAL = [
+  { title: "💕 Seu rosto merece!", body: "Olá {NOME}! Sua pele sentiu sua falta! Volte com {TRATAMENTO} + protetor solar FPS 50+ = pele radiante! ☀️✨" },
+  { title: "🌟 Brilho natural", body: "{NOME}, lembre-se: limpeza profunda a cada 30-45 dias + hidratação diária = pele perfeita! Agende já!" },
+  { title: "☀️ Protetor solar é essencial!", body: "Para manter seus resultados com {TRATAMENTO}, use FPS 50+ diariamente. Hidratar + proteger = beleza durável! 💧" },
+  { title: "💧 Hidratação profunda", body: "{NOME}, sua pele está pedindo {TRATAMENTO}! Dica: beba 3L de água + use hidratante 2x ao dia! 🌊" },
+  { title: "✨ Limpeza periódica", body: "Dica: {TRATAMENTO} a cada 30-45 dias é ideal! Ajuda a renovar, limpar e manter a pele sempre linda! 🧖‍♀️" },
+  { title: "🎯 Pele com propósito", body: "Você brilhava! Volte com {TRATAMENTO}. Combo vencedor: protetor solar + hidratação + cuidado consistente! 🌟" },
+  { title: "💖 Amor à sua pele", body: "{NOME}, cuide bem: {TRATAMENTO} regulamente + sunscreen todos os dias = pele radiante permanentemente! ☀️" }
+];
+
+// Banco unificado - seleciona automaticamente por tipo de procedimento
+const MENSAGENS_MOTIVACIONAIS_BANCO = [
+  // Genéricas (funcionam para todos)
+  { title: "💕 Sentimos sua falta!", body: "{NOME}, está na hora de cuidar de você novamente com {TRATAMENTO}. Sua beleza merece atenção! ✨" },
+  { title: "🌟 Vamos relembrar?", body: "{NOME}, você estava com resultados incríveis! Que tal continuar essa jornada transformadora?" },
+  { title: "💪 Autocuidado é amar a si mesma", body: "{NOME}, dedicar tempo para você é essencial. {TRATAMENTO} a cada semana mantém seus resultados! 💖" },
+  { title: "🎯 Resultados incríveis esperam", body: "Você já conquistou tanto! Vamos manter esse progresso com {TRATAMENTO}?" },
+  { title: "✨ Sua melhor versão", body: "{NOME}, cada procedimento é um passo para a confiança. Agende seu {TRATAMENTO} agora!" },
+  { title: "💫 Beleza em movimento", body: "Sua pele fala sobre você. Volte com {TRATAMENTO} e sinta a diferença! 🌟" },
+  { title: "🌸 Momento de cuidado", body: "{NOME}, você merece se sentir linda todos os dias. Agende seu {TRATAMENTO}!" }
+];
+
+// Mensagens de Lembrete: Cada uma com função específica
+const MENSAGENS_LEMBRETE = {
+  confirmacao_agendamento: {
+    title: "✅ Agendamento Confirmado!",
+    body: "{NOME}, seu agendamento de {TRATAMENTO} está confirmado para {DATA} às {HORA}. Até breve! 💖"
+  },
+  lembrete_24h: {
+    title: "🔔 Seu agendamento é amanhã!",
+    body: "{NOME}, seu {TRATAMENTO} está marcado para amanhã às {HORA}. Chegue 5 min antes! ⏰"
+  },
+  continuidade_3_procedimentos: {
+    title: "⚠️ Reta final do tratamento!",
+    body: "{NOME}, faltam apenas 3 procedimentos para completar seu protocolo! 💪 Continuidade = Resultados!"
+  },
+  fim_procedimento: {
+    title: "🎉 Protocolo completo!",
+    body: "{NOME}, parabéns! Você completou seu tratamento de {TRATAMENTO}. 🎉 Agende sua avaliação de progresso!"
+  },
+  pacote_vencendo: {
+    title: "⏳ Seu pacote vence em 2 semanas!",
+    body: "{NOME}, você ainda tem {SESSOES_RESTANTES} sessões do pacote {PACOTE}. Aproveite antes de vencer!"
+  },
+  cliente_inativo: {
+    title: "💔 Sentimos sua ausência!",
+    body: "{NOME}, você não nos visita há {DIAS} dias. Seus resultados podem regredir. Que tal agendar?"
+  },
+  falta_confirmada: {
+    title: "⚠️ Falta registrada",
+    body: "{NOME}, você faltou em seu agendamento. Marque uma nova data para não perder seus resultados!"
+  },
+  aniversario: {
+    title: "🎂 Feliz Aniversário!",
+    body: "{NOME}! Parabéns! Aproveite 20% OFF em qualquer procedimento hoje! 🎁 Agende já!"
+  }
+};
+
+// Função para determinar o tipo de procedimento (corpo vs facial)
+function detectarTipoProcedimento(procedimento) {
+  if (!procedimento) return 'generico';
+  const nomeProcedimento = procedimento.toLowerCase();
+
+  const isCorporal = CATEGORIAS_PROCEDIMENTOS.corpo.some(p => nomeProcedimento.includes(p.toLowerCase()));
+  const isFacial = CATEGORIAS_PROCEDIMENTOS.facial.some(p => nomeProcedimento.includes(p.toLowerCase()));
+
+  if (isCorporal) return 'corpo';
+  if (isFacial) return 'facial';
+  return 'generico';
+}
+
+// Função para calcular próximo intervalo intelligente (1,2,3,4,5,6,7 dias - nunca consecutivos ou 2 dias)
+function calcularProximoIntervalo(ultimaData) {
+  const hoje = new Date();
+  const ultima = ultimaData ? new Date(ultimaData) : new Date(Date.now() - 1*24*60*60*1000);
+
+  // Calcular dias desde última mensagem
+  const diasDesdeUltima = Math.floor((hoje - ultima) / (24*60*60*1000));
+
+  // Sequência válida: 1,3,4,5,6,7 dias (pula 2 para não fazer envios muito próximos)
+  const intervalosValidos = [1, 3, 4, 5, 6, 7];
+
+  // Se não enviou há mais de 7 dias, enviar agora
+  if (diasDesdeUltima >= 7) return 0;
+
+  // Encontrar próximo intervalo válido
+  const proximoIntervalo = intervalosValidos.find(dias => diasDesdeUltima >= dias);
+
+  return proximoIntervalo || 1; // Se não encontrar, envia em 1 dia
+}
+
+// Cron job: enviar mensagens motivacionais (deve ser acionado 1x por dia)
 async function enviarMensagensMotivacionais() {
   try {
     const hoje = new Date().toISOString().split('T')[0];
-    
-    // Buscar clientes que precisam de mensagem (última foi há 2+ dias)
+
+    // Buscar clientes que precisam de mensagem (última foi há mais de 24h)
     const { data: clientesPendentes } = await sb.from('cliente_mensagens_motivacionais')
       .select('cliente_id')
       .lte('proxima_mensagem_em', hoje)
-      .limit(20);
+      .limit(50);
 
-    const clientesIds = (clientesPendentes || []).map(m => m.cliente_id);
+    const clientesIds = [...new Set((clientesPendentes || []).map(m => m.cliente_id))];
 
-    if (clientesIds.length === 0) return { enviadas: 0, erro: 0 };
+    if (clientesIds.length === 0) {
+      console.log('✅ Nenhum cliente elegível para notificação motivacional hoje');
+      return { enviadas: 0, erro: 0 };
+    }
 
-    // Buscar dados completos dos clientes
+    // Buscar dados completos dos clientes com últimos procedimentos
     const { data: clientes } = await sb.from('clientes')
-      .select('*')
+      .select(`*`)
       .in('id', clientesIds);
 
     let enviadas = 0, erro = 0;
 
     for (const cliente of clientes || []) {
-      // Definir tipo de mensagem baseado em estatísticas
-      let tipoMensagem = 'volta_agendamento';
-      
-      // Verificar se está próximo de completar tratamento (3 procedimentos faltando)
-      const { data: agendamentos } = await sb.from('agendamentos')
-        .select('*', { count: 'exact', head: true })
-        .eq('cliente_id', cliente.id)
-        .eq('status', 'concluido');
-      
-      if (agendamentos?.count >= 9 && agendamentos?.count <= 11) {
-        tipoMensagem = 'continuidade_tratamento';
-      }
+      try {
+        // Buscar último procedimento do cliente para determinar tipo
+        const { data: ultimoAgendamento } = await sb.from('agendamentos')
+          .select('*, procedimentos(nome)')
+          .eq('cliente_id', cliente.id)
+          .eq('status', 'concluido')
+          .order('data_horario', { ascending: false })
+          .limit(1)
+          .single();
 
-      const resultado = await enviarNotificacaoMotivacional(cliente, tipoMensagem);
-      if (resultado) enviadas++; else erro++;
+        const tipoProcedimento = detectarTipoProcedimento(ultimoAgendamento?.procedimentos?.nome || cliente.tratamento_atual);
+
+        // Selecionar banco de mensagens apropriado
+        let bancoProcedimento = MENSAGENS_MOTIVACIONAIS_BANCO;
+        if (tipoProcedimento === 'corpo') {
+          bancoProcedimento = [...MENSAGENS_CORPO, ...MENSAGENS_MOTIVACIONAIS_BANCO];
+        } else if (tipoProcedimento === 'facial') {
+          bancoProcedimento = [...MENSAGENS_FACIAL, ...MENSAGENS_MOTIVACIONAIS_BANCO];
+        }
+
+        // Buscar histórico para evitar repetição
+        const { data: historicoMensagens } = await sb.from('cliente_mensagens_motivacionais')
+          .select('titulo, data_exibicao')
+          .eq('cliente_id', cliente.id)
+          .eq('tipo_notificacao', 'push')
+          .order('data_exibicao', { ascending: false })
+          .limit(15);
+
+        // Títulos já enviados
+        const titulosEnviados = new Set((historicoMensagens || []).map(m => m.titulo));
+
+        // Filtrar mensagens disponíveis
+        const mensagensDisponiveis = bancoProcedimento.filter(m => !titulosEnviados.has(m.title));
+        const mensagensParaEnviar = mensagensDisponiveis.length > 0 ? mensagensDisponiveis : bancoProcedimento;
+
+        // Selecionar mensagem aleatória
+        const msgSelecionada = mensagensParaEnviar[Math.floor(Math.random() * mensagensParaEnviar.length)];
+
+        const resultado = await enviarNotificacao(cliente, msgSelecionada, 'motivacional');
+
+        if (resultado) {
+          // Calcular próximo intervalo válido
+          const ultimoEnvio = historicoMensagens?.[0]?.data_exibicao || new Date(Date.now() - 7*24*60*60*1000).toISOString();
+          const proximoIntervalo = calcularProximoIntervalo(ultimoEnvio);
+          const proxima = new Date(Date.now() + proximoIntervalo * 24*60*60*1000).toISOString().split('T')[0];
+
+          // Atualizar data próxima mensagem
+          await sb.from('cliente_mensagens_motivacionais')
+            .update({ proxima_mensagem_em: proxima })
+            .eq('cliente_id', cliente.id)
+            .order('data_exibicao', { ascending: false })
+            .limit(1);
+
+          enviadas++;
+        } else {
+          erro++;
+        }
+      } catch (clienteErr) {
+        console.error(`Erro ao processar cliente ${cliente.id}:`, clienteErr);
+        erro++;
+      }
     }
 
-    return { enviadas, erro };
+    console.log(`✅ Cron Job Concluído: ${enviadas} enviadas, ${erro} erros`);
+    return { enviadas, erro, clientes_processados: clientesIds.length };
   } catch (err) {
     console.error('Erro ao enviar mensagens motivacionais:', err);
     return { enviadas: 0, erro: 1 };
   }
 }
 
-async function enviarNotificacaoMotivacional(cliente, tipoMensagem = 'volta_agendamento') {
+// Função unificada para enviar notificações (motivacionais ou de lembrete)
+async function enviarNotificacao(cliente, msgObj, tipoNotificacao = 'motivacional', dadosAjuste = {}) {
   try {
-    const mensagens = MENSAGENS_MOTIVACIONAIS[tipoMensagem] || MENSAGENS_MOTIVACIONAIS.volta_agendamento;
-    const msgObj = mensagens[Math.floor(Math.random() * mensagens.length)];
+    // Realizar substituições de placeholders
+    let titulo = msgObj.title;
+    let corpo = msgObj.body;
 
-    const titulo = msgObj.title
-      .replace('{NOME}', cliente.nome)
-      .replace('{TRATAMENTO}', cliente.tratamento || 'procedimento');
+    // Placeholders básicos
+    const placeholders = {
+      '{NOME}': cliente.nome || 'Cliente',
+      '{TRATAMENTO}': cliente.tratamento_atual || 'procedimento',
+      '{DATA}': dadosAjuste.data || '',
+      '{HORA}': dadosAjuste.hora || '',
+      '{SESSOES_RESTANTES}': dadosAjuste.sessoesRestantes || '0',
+      '{PACOTE}': dadosAjuste.nomePacote || 'seu pacote',
+      '{DIAS}': dadosAjuste.diasInatividade || '0'
+    };
 
-    const corpo = msgObj.body
-      .replace('{NOME}', cliente.nome)
-      .replace('{TRATAMENTO}', cliente.tratamento || 'procedimento');
+    // Substituir todos os placeholders
+    Object.entries(placeholders).forEach(([chave, valor]) => {
+      titulo = titulo.replace(chave, valor);
+      corpo = corpo.replace(chave, valor);
+    });
 
     // Tentar enviar push notification via Service Worker
     if ('serviceWorker' in navigator && 'PushManager' in window) {
@@ -3283,30 +3698,296 @@ async function enviarNotificacaoMotivacional(cliente, tipoMensagem = 'volta_agen
         body: corpo,
         icon: './logo.svg',
         badge: './logo.svg',
-        tag: `msg-${cliente.id}`,
+        tag: `msg-${cliente.id}-${Date.now()}`,
         requireInteraction: false,
         actions: [
-          { action: 'open', title: 'Agendar' },
+          { action: 'agendar', title: 'Agendar Agora' },
           { action: 'dismiss', title: 'Fechar' }
         ]
       });
     }
 
-    // Registrar no banco com sucesso
+    // Determinar próxima mensagem baseado no tipo
+    const proxima_mensagem_em = tipoNotificacao === 'motivacional'
+      ? new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+      : new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().split('T')[0]; // 24h para lembretes
+
+    // Registrar no banco de dados
     await sb.from('cliente_mensagens_motivacionais').insert({
       cliente_id: cliente.id,
-      tipo: tipoMensagem,
       titulo: titulo,
-      mensagem: corpo,
-      status: 'enviada',
-      proxima_mensagem_em: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+      body: corpo,
+      status: 'pendente_exibicao',
+      data_exibicao: null,
+      tipo_notificacao: 'push',
+      proxima_mensagem_em: proxima_mensagem_em
     });
 
-    console.log(`✅ Push Notification enviada para ${cliente.nome}: "${titulo}"`);
+    console.log(`✅ Notificação ${tipoNotificacao} enviada para ${cliente.nome}: "${titulo}"`);
     return true;
   } catch (err) {
-    console.error('Erro ao enviar notificação:', err);
+    console.error(`Erro ao enviar notificação ${tipoNotificacao}:`, err);
     return false;
+  }
+}
+
+// Wrapper para compatibilidade e uso direto de mensagens de lembrete
+async function enviarNotificacaoMotivacional(cliente, tipoMensagem = 'confirmacao_agendamento', dadosAjuste = {}) {
+  try {
+    // Se é um tipo de lembrete (existe em MENSAGENS_LEMBRETE)
+    if (MENSAGENS_LEMBRETE[tipoMensagem]) {
+      return await enviarNotificacao(cliente, MENSAGENS_LEMBRETE[tipoMensagem], 'lembrete', dadosAjuste);
+    }
+
+    // Se não, trata como motivacional (seleção aleatória)
+    const msgObj = MENSAGENS_MOTIVACIONAIS_BANCO[Math.floor(Math.random() * MENSAGENS_MOTIVACIONAIS_BANCO.length)];
+    return await enviarNotificacao(cliente, msgObj, 'motivacional');
+  } catch (err) {
+    console.error('Erro em enviarNotificacaoMotivacional:', err);
+    return false;
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+// FUNÇÕES ESPECÍFICAS DE NOTIFICAÇÃO DE LEMBRETE
+// ═══════════════════════════════════════════════════════
+
+// Confirmar agendamento e enviar notificação
+async function confirmarAgendamentoComNotificacao(agendamentoId, cliente, agendamento) {
+  try {
+    const dadosAjuste = {
+      data: new Date(agendamento.data_horario).toLocaleDateString('pt-BR'),
+      hora: new Date(agendamento.data_horario).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+      tratamento: agendamento.procedimento_nome || 'procedimento'
+    };
+
+    return await enviarNotificacaoMotivacional(cliente, 'confirmacao_agendamento', dadosAjuste);
+  } catch (err) {
+    console.error('Erro ao confirmar agendamento com notificação:', err);
+    return false;
+  }
+}
+
+// Enviar lembrete 24h antes do agendamento (chamado por cron job)
+async function enviarLembretes24hAntes() {
+  try {
+    const amanha = new Date();
+    amanha.setDate(amanha.getDate() + 1);
+    const dataAmanha = amanha.toISOString().split('T')[0];
+    const horaMin = '00:00';
+    const horaMax = '23:59';
+
+    // Buscar agendamentos para amanhã
+    const { data: agendamentos } = await sb.from('agendamentos')
+      .select('*, clientes(nome, email, telefone), procedimentos(nome)')
+      .gte('data_horario', `${dataAmanha}T${horaMin}`)
+      .lte('data_horario', `${dataAmanha}T${horaMax}`)
+      .eq('status', 'confirmado');
+
+    let enviadas = 0;
+    for (const agendamento of agendamentos || []) {
+      const cliente = agendamento.clientes || {};
+      const dadosAjuste = {
+        tratamento: agendamento.procedimentos?.nome || 'procedimento',
+        hora: new Date(agendamento.data_horario).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+      };
+
+      const sucesso = await enviarNotificacaoMotivacional(cliente, 'lembrete_24h', dadosAjuste);
+      if (sucesso) enviadas++;
+    }
+
+    console.log(`✅ ${enviadas} lembretes de 24h enviados`);
+    return { enviadas };
+  } catch (err) {
+    console.error('Erro ao enviar lembretes 24h:', err);
+    return { enviadas: 0, erro: err.message };
+  }
+}
+
+// Verificar e avisar sobre continuidade (3 procedimentos faltando)
+async function verificarContinuidadeTratamento(clienteId) {
+  try {
+    // Buscar total de agendamentos concluídos
+    const { data: contagem } = await sb.from('agendamentos')
+      .select('*', { count: 'exact', head: true })
+      .eq('cliente_id', clienteId)
+      .eq('status', 'concluido');
+
+    const totalConcluido = contagem?.count || 0;
+
+    // Se completou 9 (faltam 3 para 12), enviar aviso de continuidade
+    if (totalConcluido === 9) {
+      const { data: cliente } = await sb.from('clientes')
+        .select('*')
+        .eq('id', clienteId)
+        .single();
+
+      if (cliente) {
+        return await enviarNotificacaoMotivacional(cliente, 'continuidade_3_procedimentos', {});
+      }
+    }
+  } catch (err) {
+    console.error('Erro ao verificar continuidade:', err);
+  }
+}
+
+// Notificar conclusão de protocolo (12 procedimentos)
+async function notificarConclusaoProtocolo(clienteId) {
+  try {
+    const { data: contagem } = await sb.from('agendamentos')
+      .select('*', { count: 'exact', head: true })
+      .eq('cliente_id', clienteId)
+      .eq('status', 'concluido');
+
+    const totalConcluido = contagem?.count || 0;
+
+    if (totalConcluido === 12) {
+      const { data: cliente } = await sb.from('clientes')
+        .select('*')
+        .eq('id', clienteId)
+        .single();
+
+      if (cliente) {
+        const { data: ultimoProcedimento } = await sb.from('agendamentos')
+          .select('procedimentos(nome)')
+          .eq('cliente_id', clienteId)
+          .eq('status', 'concluido')
+          .order('data_horario', { ascending: false })
+          .limit(1)
+          .single();
+
+        const dadosAjuste = {
+          tratamento: ultimoProcedimento?.procedimentos?.nome || 'procedimento'
+        };
+
+        return await enviarNotificacaoMotivacional(cliente, 'fim_procedimento', dadosAjuste);
+      }
+    }
+  } catch (err) {
+    console.error('Erro ao notificar conclusão:', err);
+  }
+}
+
+// Avisar pacote vencendo em 2 semanas
+async function verificarPacotesVencendo() {
+  try {
+    const emDuasSemanas = new Date();
+    emDuasSemanas.setDate(emDuasSemanas.getDate() + 14);
+    const dataSemanas = emDuasSemanas.toISOString().split('T')[0];
+
+    // Buscar pacotes que vencem em 2 semanas
+    const { data: pacotesVencendo } = await sb.from('pacotes_cliente')
+      .select('*, clientes(nome)')
+      .lte('vencimento', dataSemanas)
+      .gt('sessoes_restantes', 0);
+
+    let avisos = 0;
+    for (const pacote of pacotesVencendo || []) {
+      const cliente = pacote.clientes || {};
+      const dadosAjuste = {
+        sessoesRestantes: pacote.sessoes_restantes || '0',
+        nomePacote: pacote.nome || 'seu pacote'
+      };
+
+      const sucesso = await enviarNotificacaoMotivacional(cliente, 'pacote_vencendo', dadosAjuste);
+      if (sucesso) avisos++;
+    }
+
+    console.log(`✅ ${avisos} avisos de pacote vencendo enviados`);
+    return { avisos };
+  } catch (err) {
+    console.error('Erro ao verificar pacotes vencendo:', err);
+    return { avisos: 0 };
+  }
+}
+
+// Avisar clientes inativos (não agendaram há X dias)
+async function verificarClientesInativos(diasInatividade = 30) {
+  try {
+    const dataLimite = new Date();
+    dataLimite.setDate(dataLimite.getDate() - diasInatividade);
+    const dataInatividade = dataLimite.toISOString().split('T')[0];
+
+    // Buscar clientes com último agendamento há mais de X dias
+    const { data: clientesInativos } = await sb.from('clientes')
+      .select('*')
+      .lte('ultimo_agendamento', dataInatividade);
+
+    let avisos = 0;
+    for (const cliente of clientesInativos || []) {
+      const dadosAjuste = {
+        dias: diasInatividade
+      };
+
+      const sucesso = await enviarNotificacaoMotivacional(cliente, 'cliente_inativo', dadosAjuste);
+      if (sucesso) avisos++;
+    }
+
+    console.log(`✅ ${avisos} avisos de inatividade enviados`);
+    return { avisos };
+  } catch (err) {
+    console.error('Erro ao verificar clientes inativos:', err);
+    return { avisos: 0 };
+  }
+}
+
+// Registrar falta e enviar notificação
+async function registrarFaltaComNotificacao(agendamentoId) {
+  try {
+    const { data: agendamento } = await sb.from('agendamentos')
+      .select('*, clientes(nome, email)')
+      .eq('id', agendamentoId)
+      .single();
+
+    if (!agendamento) return false;
+
+    // Atualizar status para falta
+    await sb.from('agendamentos')
+      .update({ status: 'falta' })
+      .eq('id', agendamentoId);
+
+    // Enviar notificação
+    const cliente = agendamento.clientes || {};
+    return await enviarNotificacaoMotivacional(cliente, 'falta_confirmada', {});
+  } catch (err) {
+    console.error('Erro ao registrar falta:', err);
+    return false;
+  }
+}
+
+// Enviar parabéns de aniversário
+async function verificarAniversarios() {
+  try {
+    const hoje = new Date();
+    const mesHoje = String(hoje.getMonth() + 1).padStart(2, '0');
+    const diaHoje = String(hoje.getDate()).padStart(2, '0');
+    const dataBuscada = `-${mesHoje}-${diaHoje}`;
+
+    // Buscar clientes com aniversário hoje (usando LIKE no banco)
+    const { data: aniversariantes } = await sb.from('clientes')
+      .select('*')
+      .ilike('data_nascimento', `%${dataBuscada}%`);
+
+    let parabenizados = 0;
+    for (const cliente of aniversariantes || []) {
+      // Verificar se já foi enviado hoje
+      const { data: jaEnviado } = await sb.from('cliente_mensagens_motivacionais')
+        .select('*')
+        .eq('cliente_id', cliente.id)
+        .contains('body', 'Feliz Aniversário')
+        .gte('data_exibicao', hoje.toISOString().split('T')[0]);
+
+      if (!jaEnviado || jaEnviado.length === 0) {
+        const sucesso = await enviarNotificacaoMotivacional(cliente, 'aniversario', {});
+        if (sucesso) parabenizados++;
+      }
+    }
+
+    console.log(`✅ ${parabenizados} mensagens de aniversário enviadas`);
+    return { parabenizados };
+  } catch (err) {
+    console.error('Erro ao verificar aniversários:', err);
+    return { parabenizados: 0 };
   }
 }
 
