@@ -3051,6 +3051,126 @@ function closeSidebarMobile() {
 }
 
 // ═══════════════════════════════════════════════════════
+// MENSAGENS MOTIVACIONAIS E CONTROLE DE FALTAS
+// ═══════════════════════════════════════════════════════
+
+const MENSAGENS_MOTIVACIONAIS = {
+  volta_agendamento: [
+    "💕 Olá {NOME}! Sentimos sua falta! Está na hora de agendar seu próximo procedimento de {TRATAMENTO}.",
+    "✨ {NOME}, seus resultados dependem da continuidade! Vamos agendar seu próximo procedimento?",
+    "🌟 Vimos que você estava progredindo muito bem! Que tal retomar os {TRATAMENTO}?",
+    "💆 {NOME}, a beleza e saúde da pele precisam de cuidados contínuos. Marque agora seu próximo tratamento!",
+    "🎯 Você merece manter os resultados que conquistou! Agende seu próximo {TRATAMENTO}!"
+  ],
+  continuidade_tratamento: [
+    "⚠️ ATENÇÃO {NOME}! Faltam apenas 3 procedimentos para completar seu tratamento! 🎉 Recomendamos uma avaliação de progresso ao final.",
+    "🚀 Você está quase lá, {NOME}! Faltam 3 sessões para terminar. Continuidade é essencial para manter a beleza! 💪",
+    "💪 {NOME}, você já fez um ótimo progresso! Faltam 3 procedimentos para conclusão do protocolo.",
+    "✅ Parabéns, {NOME}! Faltam apenas 3 sessões. Não interrompa agora - os resultados dependem da continuidade! 🌟"
+  ]
+};
+
+async function enviarMensagensMotivacionais() {
+  try {
+    const hoje = new Date().toISOString().split('T')[0];
+    
+    // Buscar clientes que precisam de mensagem (última foi há 2+ dias)
+    const { data: clientesPendentes } = await sb.from('cliente_mensagens_motivacionais')
+      .select('cliente_id')
+      .lte('proxima_mensagem_em', hoje)
+      .limit(20);
+
+    const clientesIds = (clientesPendentes || []).map(m => m.cliente_id);
+
+    if (clientesIds.length === 0) return { enviadas: 0, erro: 0 };
+
+    // Buscar dados completos dos clientes
+    const { data: clientes } = await sb.from('clientes')
+      .select('*')
+      .in('id', clientesIds);
+
+    let enviadas = 0, erro = 0;
+
+    for (const cliente of clientes || []) {
+      // Definir tipo de mensagem baseado em estatísticas
+      let tipoMensagem = 'volta_agendamento';
+      
+      // Verificar se está faltando 3 procedimentos
+      const { data: agendamentos } = await sb.from('agendamentos')
+        .select('*', { count: 'exact', head: true })
+        .eq('cliente_id', cliente.id)
+        .eq('status', 'concluido');
+      
+      if (agendamentos?.count >= 9 && agendamentos?.count <= 11) {
+        tipoMensagem = 'continuidade_tratamento';
+      }
+
+      const resultado = await enviarMensagemWhatsApp(cliente, tipoMensagem);
+      if (resultado) enviadas++; else erro++;
+    }
+
+    return { enviadas, erro };
+  } catch (err) {
+    console.error('Erro ao enviar mensagens motivacionais:', err);
+    return { enviadas: 0, erro: 1 };
+  }
+}
+
+async function enviarMensagemWhatsApp(cliente, tipoMensagem = 'volta_agendamento') {
+  try {
+    const mensagens = MENSAGENS_MOTIVACIONAIS[tipoMensagem] || MENSAGENS_MOTIVACIONAIS.volta_agendamento;
+    const mensagem = mensagens[Math.floor(Math.random() * mensagens.length)];
+
+    const textoFinal = mensagem
+      .replace('{NOME}', cliente.nome)
+      .replace('{TRATAMENTO}', cliente.tratamento || 'procedimento');
+
+    const whatsappLink = `https://wa.me/55${cliente.telefone}?text=${encodeURIComponent(textoFinal)}`;
+
+    // Registrar no banco
+    await sb.from('cliente_mensagens_motivacionais').insert({
+      cliente_id: cliente.id,
+      tipo: tipoMensagem,
+      mensagem: textoFinal,
+      status: 'enviada',
+      proxima_mensagem_em: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+    });
+
+    // Log para envio manual (em produção seria automático)
+    console.log(`[WhatsApp] ${cliente.nome}: ${whatsappLink}`);
+
+    return true;
+  } catch (err) {
+    console.error('Erro ao enviar mensagem:', err);
+    return false;
+  }
+}
+
+function registrarFalta(clienteId, agendamentoId, motivo = '') {
+  return sb.from('cliente_faltas_historico').insert({
+    cliente_id: clienteId,
+    agendamento_id: agendamentoId,
+    tipo: 'faltou',
+    motivo: motivo,
+    data_falta: new Date().toISOString().split('T')[0]
+  });
+}
+
+async function carregarClientesComFaltas() {
+  try {
+    const { data } = await sb.from('cliente_estatisticas')
+      .select('*')
+      .gt('total_faltas', 0)
+      .order('total_faltas', { ascending: false })
+      .limit(5);
+    return data || [];
+  } catch (err) {
+    console.error('Erro ao carregar clientes com faltas:', err);
+    return [];
+  }
+}
+
+// ═══════════════════════════════════════════════════════
 // INIT
 // ═══════════════════════════════════════════════════════
 document.getElementById('login-email').addEventListener('keydown', e => { if(e.key==='Enter') document.getElementById('login-pass').focus(); });
