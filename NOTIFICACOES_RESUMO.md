@@ -48,6 +48,7 @@ Dia 0 (envio) → Dia 1 (aguardando) → Dia 3 (próximo) → Dia 4 → Dia 5 �
 | 💔 **Cliente Inativo** | 30+ dias sem agendamento | "Você não nos visita há 30 dias. Seus resultados podem regredir!" |
 | ⚠️ **Falta Registrada** | Falta confirmada | "Você faltou. Marque nova data para manter resultados!" |
 | 🎂 **Aniversário** | Dia de aniversário | "Feliz Aniversário! 20% OFF em qualquer procedimento!" |
+| 💪 **Procedimentos Corporais** | Semanal (7+ dias) | "Já faz 7 dias! Para manter resultados, agende sua próxima sessão! 🔥" |
 
 ### 4. **Recomendação Automática**
 
@@ -60,6 +61,18 @@ Dia 0 (envio) → Dia 1 (aguardando) → Dia 3 (próximo) → Dia 4 → Dia 5 �
 ✨ Hora da Limpeza Facial!
 {NOME}, já faz {DIAS} dias desde sua última limpeza profunda.
 O ideal é fazer a cada 30-45 dias! Reserve seu lugar agora! 🧖‍♀️
+```
+
+💪 **Procedimentos Corporais Semanais**
+- Verifica último procedimento corporal
+- Recomenda quando passar de 7 dias
+- Foco em: manutenção de resultados
+- Procedimentos: Ultrassom, Pump Up, Radiofrequência, Carboxiterapia, Drenagem, Massagem
+
+```
+💪 Sua Semana de Cuidados!
+{NOME}, já faz {DIAS} dias desde seu último {TRATAMENTO}.
+Para manter resultados incríveis, o ideal é fazer a cada semana! Agende sua próxima sessão! 🔥
 ```
 
 ---
@@ -133,6 +146,11 @@ Registra satisfação do cliente
 6️⃣ **✨ Limpeza Facial**
    - Recomenda limpeza profunda (30-45 dias)
    - Personalizado por cliente
+
+7️⃣ **💪 Procedimentos Corporais**
+   - Recomenda procedimentos corporais a cada semana
+   - Foco em manutenção de resultados
+   - Procedimentos incluídos: Ultrassom, Pump Up, Radiofrequência, Carboxiterapia, Drenagem, Massagem
 
 #### Histórico de Notificações
 - Mostra últimas 20 notificações enviadas

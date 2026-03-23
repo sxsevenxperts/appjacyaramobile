@@ -89,6 +89,7 @@ Acesse a aba **"🔔 Notificações"** no aplicativo e use os botões:
 - 💔 **Inativos** - Notifica clientes sem agendamento há 30 dias
 - 🎂 **Aniversários** - Parabeniza aniversariantes
 - ✨ **Limpeza Facial** - Recomenda limpeza facial (30-45 dias)
+- 💪 **Procedimentos Corporais** - Recomenda procedimentos corporais a cada semana
 
 ### **Opção 2: Automático com Cron Job (Recomendado)**
 

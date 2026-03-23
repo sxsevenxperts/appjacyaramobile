@@ -3261,6 +3261,14 @@ async function renderNotificacoes() {
             </button>
             <div style="font-size:11px;margin-top:6px;opacity:0.8">Recomendação 30-45 dias</div>
           </div>
+
+          <div style="background:rgba(255,255,255,0.15);border-radius:8px;padding:12px;backdrop-filter:blur(10px)">
+            <div style="font-size:12px;opacity:0.9;margin-bottom:8px">💪 Procedimentos Corporais</div>
+            <button class="btn btn-sm" style="width:100%;background:white;color:#667eea;border:none;font-weight:bold" onclick="triggerNotificacao('procedimentoscorporais')">
+              Lembrar
+            </button>
+            <div style="font-size:11px;margin-top:6px;opacity:0.8">A cada semana para resultados</div>
+          </div>
         </div>
       </div>
 
@@ -3353,6 +3361,64 @@ async function verificarLimpezaFacialPeriodica() {
   }
 }
 
+// Verificar recomendação de procedimentos corporais semanal
+async function verificarProcedimentosCorporaisSemanal() {
+  try {
+    // Buscar todos os clientes
+    const { data: clientes } = await sb.from('clientes')
+      .select('*');
+
+    let recomendacoes = 0;
+
+    for (const cliente of clientes || []) {
+      // Buscar último procedimento corporal concluído
+      const { data: ultimoProcedimento } = await sb.from('agendamentos')
+        .select('*')
+        .eq('cliente_id', cliente.id)
+        .eq('status', 'concluido')
+        .order('data_horario', { ascending: false })
+        .limit(1)
+        .single();
+
+      if (ultimoProcedimento) {
+        // Verificar se é procedimento corporal
+        const isCorporal = CATEGORIAS_PROCEDIMENTOS.corpo.some(p =>
+          ultimoProcedimento.procedimento_nome?.toLowerCase().includes(p.toLowerCase())
+        );
+
+        if (isCorporal) {
+          const dataUltimo = new Date(ultimoProcedimento.data_horario);
+          const diasDesdeUltimo = Math.floor((Date.now() - dataUltimo) / (24*60*60*1000));
+
+          // Se passou 7 dias desde último procedimento corporal, recomendar
+          if (diasDesdeUltimo >= 7) {
+            const procedimentoNome = ultimoProcedimento.procedimento_nome || 'procedimento';
+
+            const msgRecomendacao = {
+              title: "💪 Sua Semana de Cuidados!",
+              body: "{NOME}, já faz {DIAS} dias desde seu último {TRATAMENTO}. Para manter resultados incríveis, o ideal é fazer a cada semana! Agende sua próxima sessão! 🔥"
+            };
+
+            const dadosAjuste = {
+              dias: diasDesdeUltimo,
+              tratamento: procedimentoNome
+            };
+            const enviado = await enviarNotificacao(cliente, msgRecomendacao, 'recomendacao_corporal', dadosAjuste);
+
+            if (enviado) recomendacoes++;
+          }
+        }
+      }
+    }
+
+    console.log(`✅ ${recomendacoes} recomendações de procedimentos corporais enviadas`);
+    return { recomendacoes };
+  } catch (err) {
+    console.error('Erro ao verificar procedimentos corporais:', err);
+    return { recomendacoes: 0 };
+  }
+}
+
 // Função para disparar notificações do painel
 async function triggerNotificacao(tipo) {
   const btnOriginal = event.target;
@@ -3385,6 +3451,10 @@ async function triggerNotificacao(tipo) {
       case 'limpezafacial':
         resultado = await verificarLimpezaFacialPeriodica();
         toast(`✅ ${resultado.recomendacoes || 0} recomendações de limpeza enviadas`, 'success');
+        break;
+      case 'procedimentoscorporais':
+        resultado = await verificarProcedimentosCorporaisSemanal();
+        toast(`✅ ${resultado.recomendacoes || 0} recomendações de procedimentos corporais enviadas`, 'success');
         break;
     }
     await renderNotificacoes();
