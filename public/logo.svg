@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 250" width="280" height="175">
+  <!-- Background -->
+  <rect width="400" height="250" fill="white" rx="20"/>
+  
+  <!-- Jacyara Ponte text (script style) -->
+  <text x="200" y="80" font-family="cursive" font-size="48" font-weight="300" fill="#d4a574" text-anchor="middle" letter-spacing="2">
+    Jacyara Ponte
+  </text>
+  
+  <!-- Small flower decoration -->
+  <g transform="translate(320, 70)">
+    <circle cx="0" cy="0" r="8" fill="#e8a8c8"/>
+    <circle cx="8" cy="0" r="5" fill="#d98aaf"/>
+    <circle cx="-8" cy="0" r="5" fill="#d98aaf"/>
+  </g>
+  
+  <!-- Subtitle -->
+  <text x="200" y="130" font-family="Arial, sans-serif" font-size="18" font-weight="700" fill="#d4a574" text-anchor="middle" letter-spacing="3">
+    ESTÉTICA CORPORAL E FACIAL
+  </text>
+  
+  <!-- Decorative line -->
+  <line x1="80" y1="145" x2="320" y2="145" stroke="#e8a8c8" stroke-width="2"/>
+</svg>
