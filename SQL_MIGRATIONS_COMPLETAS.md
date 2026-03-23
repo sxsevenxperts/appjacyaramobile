@@ -159,3 +159,40 @@ Deve retornar 2 linhas:
 - `procedimentos`
 
 Se retornar as 2, **tudo está pronto!** 🎉
+
+---
+
+## 5️⃣ ADICIONAR COLUNA PARA TRACKING DE PROMOÇÕES (OPCIONAL MAS RECOMENDADO)
+
+```sql
+-- Adicionar coluna para identificar tipo de mensagem (promotionalValue, lembrete, motivacional)
+ALTER TABLE cliente_mensagens_motivacionais
+ADD COLUMN IF NOT EXISTS tipo_mensagem TEXT DEFAULT 'motivacional';
+
+-- Criar índice para buscar promoções rapidamente
+CREATE INDEX IF NOT EXISTS idx_cliente_msg_tipo_msg
+ON cliente_mensagens_motivacionais(cliente_id, tipo_mensagem);
+
+-- Criar índice para buscar promoções por data
+CREATE INDEX IF NOT EXISTS idx_msg_promo_data
+ON cliente_mensagens_motivacionais(tipo_mensagem, created_at DESC);
+```
+
+**Status**: Execute isto quinto (opcional) ✅
+
+**Benefício**: Permite rastrear promoções separadamente e gerar relatórios de campanhas promocionais
+
+---
+
+## 🎯 RESUMO FINAL ATUALIZADO
+
+| Migration | Status |
+|-----------|--------|
+| 1. Criar tabela mensagens | ✅ **Fazer primeiro** |
+| 2. Criar tabela procedimentos | ✅ **Fazer segundo** |
+| 3. Adicionar colunas clientes | ✅ **Fazer terceiro** |
+| 4. Atualizar agendamentos | ✅ **Fazer quarto** |
+| 5. Adicionar rastreamento de promoções | ✅ **Fazer quinto (opcional)** |
+
+---
+

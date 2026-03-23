@@ -534,6 +534,19 @@ const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFz
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
 
 // ═══════════════════════════════════════════════════════
+// WEATHER API (Open-Meteo - Grátis, sem API key)
+// ═══════════════════════════════════════════════════════
+// Localização padrão da clínica (você pode customizar)
+const CLINIC_LOCATION = {
+  lat: -3.7319,  // Latitude de Fortaleza, CE (exemplo)
+  lon: -38.5267, // Longitude de Fortaleza, CE (exemplo)
+  nome: 'Fortaleza, CE'
+};
+
+// Cache de previsões (TTL: 1 hora)
+let weatherCache = {};
+
+// ═══════════════════════════════════════════════════════
 // ESTADO GLOBAL
 // ═══════════════════════════════════════════════════════
 let APP = {
@@ -1742,6 +1755,11 @@ async function confirmarAgendamento(id) {
         hora: new Date(agendamento.data_horario).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
       };
       await enviarNotificacaoMotivacional(cliente, 'confirmacao_agendamento', dadosAjuste);
+
+      // Verificar previsão de chuva e avisar cliente
+      setTimeout(() => {
+        notificarClienteSobreChuva(agendamento);
+      }, 1000);
     }
 
     closeModal(); toast('Agendamento confirmado!');
@@ -3228,6 +3246,9 @@ async function renderNotificacoes() {
     .eq('status', 'confirmado')
     .order('data_horario');
 
+  // Buscar aniversários do mês
+  const aniversariantes = await obterAniversariosDoMes();
+
   // Buscar histórico de notificações enviadas
   const { data: historicoNotificacoes } = await sb.from('cliente_mensagens_motivacionais')
     .select('*')
@@ -3297,6 +3318,14 @@ async function renderNotificacoes() {
             </button>
             <div style="font-size:11px;margin-top:6px;opacity:0.8">A cada semana para resultados</div>
           </div>
+
+          <div style="background:rgba(255,255,255,0.15);border-radius:8px;padding:12px;backdrop-filter:blur(10px)">
+            <div style="font-size:12px;opacity:0.9;margin-bottom:8px">📢 Promoção Relâmpago</div>
+            <button class="btn btn-sm" style="width:100%;background:white;color:#667eea;border:none;font-weight:bold" onclick="mostrarFormularioPromocao()">
+              Criar & Enviar
+            </button>
+            <div style="font-size:11px;margin-top:6px;opacity:0.8">Para todos os clientes</div>
+          </div>
         </div>
       </div>
 
@@ -3322,6 +3351,34 @@ async function renderNotificacoes() {
           `).join('')}
       </div>
 
+      <!-- Aniversários do Mês -->
+      <div style="background:white;border-radius:12px;border:1.5px solid var(--border);padding:16px">
+        <h3 style="margin:0 0 12px 0;font-size:16px">🎂 Aniversários do Mês</h3>
+
+        <div style="display:grid;gap:8px">
+          ${aniversariantes.filter(a => a.diasFaltam <= 30).sort((a, b) => a.diasFaltam - b.diasFaltam).map(a => `
+            <div style="background:${a.hoje ? '#fff3cd' : '#f8f9fa'};border-left:4px solid ${a.hoje ? '#ffc107' : '#e9ecef'};border-radius:6px;padding:12px;display:flex;justify-content:space-between;align-items:center">
+              <div>
+                <div style="font-weight:600;color:var(--text)">${a.nome}</div>
+                <div style="font-size:12px;color:var(--text2)">
+                  ${a.hoje ? '🎉 HOJE!' : `${a.diasFaltam} dias`}
+                </div>
+              </div>
+              ${a.hoje ?
+                `<button class="btn btn-sm" style="background:#ffc107;color:white;border:none;font-weight:bold" onclick="triggerNotificacao('aniversarios')">
+                  🎁 Parabenizar
+                </button>` :
+                `<span style="font-size:12px;color:var(--text3)">
+                  ${new Date(a.data).toLocaleDateString('pt-BR', {day:'2-digit', month:'2-digit'})}
+                </span>`
+              }
+            </div>
+          `).join('')}
+          ${aniversariantes.filter(a => a.diasFaltam <= 30).length === 0 ?
+            '<div style="text-align:center;color:var(--text2);padding:20px;font-size:14px">Nenhum aniversário próximo este mês</div>' : ''}
+        </div>
+      </div>
+
       <!-- Histórico de Notificações -->
       <div style="background:white;border-radius:12px;border:1.5px solid var(--border);padding:16px">
         <h3 style="margin:0 0 12px 0;font-size:16px">📊 Histórico (últimos 30 dias)</h3>
@@ -3336,6 +3393,23 @@ async function renderNotificacoes() {
           `).join('')}
           ${(!historicoNotificacoes || historicoNotificacoes.length === 0) ?
             '<div style="text-align:center;color:var(--text2);padding:20px">Nenhuma notificação enviada ainda</div>' : ''}
+        </div>
+      </div>
+
+      <!-- Histórico de Promoções -->
+      <div style="background:white;border-radius:12px;border:1.5px solid var(--border);padding:16px">
+        <h3 style="margin:0 0 12px 0;font-size:16px">📢 Histórico de Promoções</h3>
+
+        <div style="display:grid;gap:8px;max-height:300px;overflow-y:auto">
+          ${(historicoNotificacoes || []).filter(n => n.tipo_mensagem === 'promocao').slice(0, 10).map(promo => `
+            <div style="background:#e8f4f8;border-radius:6px;padding:12px;font-size:12px;border-left:4px solid #17a2b8">
+              <div style="font-weight:600;color:#0c5460">${promo.titulo || '📢 Promoção'}</div>
+              <div style="color:#0c5460;margin:6px 0;white-space:normal;line-height:1.4">${(promo.body || '').substring(0, 100)}...</div>
+              <div style="color:#0c5460;font-size:11px;opacity:0.8">${new Date(promo.created_at).toLocaleDateString('pt-BR', {weekday:'short', hour:'2-digit', minute:'2-digit'})}</div>
+            </div>
+          `).join('')}
+          ${(historicoNotificacoes || []).filter(n => n.tipo_mensagem === 'promocao').length === 0 ?
+            '<div style="text-align:center;color:var(--text2);padding:20px;font-size:13px">Nenhuma promoção enviada ainda</div>' : ''}
         </div>
       </div>
     </div>
@@ -3566,6 +3640,176 @@ const CATEGORIAS_PROCEDIMENTOS = {
 };
 
 // Mensagens motivacionais para procedimentos de corpo (foco: treinamento, alimentação, hidratação)
+// ═══════════════════════════════════════════════════════
+// PROMOÇÃO RELÂMPAGO / ANÚNCIOS PARA TODOS OS CLIENTES
+// ═══════════════════════════════════════════════════════
+
+// Mostrar formulário para criar promoção
+async function mostrarFormularioPromocao() {
+  const modalHTML = `
+    <div class="modal" style="max-width:600px;max-height:90vh;overflow-y:auto">
+      <h3 style="margin-bottom:20px">📢 Criar Promoção/Anúncio</h3>
+      
+      <div style="background:#f8f9fa;border-radius:8px;padding:16px;margin-bottom:16px">
+        <label style="display:block;margin-bottom:8px;font-weight:600;color:var(--text)">
+          📝 Título ou Assunto
+        </label>
+        <input type="text" id="promo-titulo" placeholder="Ex: Promoção de Verão, Nova Franquia, etc" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:6px;font-size:14px;box-sizing:border-box;">
+      </div>
+
+      <div style="background:#f8f9fa;border-radius:8px;padding:16px;margin-bottom:16px">
+        <label style="display:block;margin-bottom:8px;font-weight:600;color:var(--text)">
+          💬 Mensagem (até 500 caracteres)
+        </label>
+        <textarea id="promo-mensagem" placeholder="Digite sua promoção ou informação importante para os clientes..." maxlength="500" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:6px;font-family:inherit;font-size:14px;box-sizing:border-box;height:140px;resize:vertical"></textarea>
+        <div style="font-size:12px;color:var(--text3);margin-top:6px" id="char-count">0/500 caracteres</div>
+      </div>
+
+      <div style="background:#f8f9fa;border-radius:8px;padding:16px;margin-bottom:16px">
+        <label style="display:flex;align-items:center;gap:8px;font-weight:600;color:var(--text);margin-bottom:8px">
+          <input type="checkbox" id="promo-whatsapp" checked style="cursor:pointer">
+          Incluir botão WhatsApp (Suporte: 55 88 9 9263-2509)
+        </label>
+        <div style="font-size:12px;color:var(--text2)">Clientes poderão clicar para chamar a Jacyara Ponte no WhatsApp</div>
+      </div>
+
+      <div style="background:#e8f4f8;border-left:4px solid #17a2b8;border-radius:6px;padding:12px;margin-bottom:16px;font-size:13px;color:#0c5460">
+        ℹ️ <strong>Prévia:</strong> Esta mensagem será enviada como notificação push para <strong>TODOS</strong> os clientes cadastrados.
+      </div>
+
+      <div style="display:flex;gap:10px;justify-content:flex-end">
+        <button class="btn btn-outline" onclick="closeModal()" style="padding:10px 20px">
+          ✕ Cancelar
+        </button>
+        <button class="btn" style="background:#17a2b8;color:white;border:none;padding:10px 20px;font-weight:bold;cursor:pointer" onclick="executarEnvioPromocao()">
+          📤 Enviar para Todos
+        </button>
+      </div>
+    </div>
+  `;
+  showModal(modalHTML);
+  
+  // Contador de caracteres
+  document.getElementById('promo-mensagem').addEventListener('input', function() {
+    document.getElementById('char-count').textContent = this.value.length + '/500 caracteres';
+  });
+}
+
+// Executar envio da promoção para todos
+async function executarEnvioPromocao() {
+  const titulo = document.getElementById('promo-titulo').value.trim();
+  const mensagem = document.getElementById('promo-mensagem').value.trim();
+  const incluirWhatsapp = document.getElementById('promo-whatsapp').checked;
+
+  if (!titulo || !mensagem) {
+    toast('⚠️ Preencha o título e a mensagem', 'warning');
+    return;
+  }
+
+  const btnEnviar = event.target;
+  btnEnviar.disabled = true;
+  btnEnviar.textContent = '⏳ Enviando...';
+
+  try {
+    const resultado = await criarEEnviarPromocao(titulo, mensagem, incluirWhatsapp);
+    toast(`✅ ${resultado.enviadas} notificações de promoção enviadas!`, 'success');
+    closeModal();
+    await renderNotificacoes();
+  } catch (err) {
+    console.error('Erro ao enviar promoção:', err);
+    toast('❌ Erro ao enviar promoção: ' + err.message, 'error');
+  } finally {
+    btnEnviar.disabled = false;
+    btnEnviar.textContent = '📤 Enviar para Todos';
+  }
+}
+
+// Função principal: Criar e enviar promoção para TODOS os clientes
+async function criarEEnviarPromocao(titulo, mensagem, incluirWhatsapp) {
+  try {
+    // Buscar todos os clientes da clínica
+    const { data: clientes, error: erroClientes } = await sb.from('clientes')
+      .select('id, nome, telefone, ativo')
+      .eq('ativo', true);
+
+    if (erroClientes) throw erroClientes;
+
+    let enviadas = 0;
+    const dataAtual = new Date().toISOString();
+
+    // Preparar mensagem com WhatsApp se necessário
+    let corpoMensagem = mensagem;
+    if (incluirWhatsapp) {
+      const whatsappLink = 'https://wa.me/5588992632509?text=Olá%20Jacyara!%20Vi%20sua%20promoção%20e%20gostaria%20de%20mais%20informações!';
+      corpoMensagem = \`📢 \${titulo}
+
+💬 \${mensagem}
+
+📱 Fale conosco:
+👉 https://wa.me/5588992632509
+
+Atendimento com Jacyara Ponte
+Clínica Estética Jacyara Ponte\`;
+    } else {
+      corpoMensagem = \`📢 \${titulo}
+
+💬 \${mensagem}
+
+✨ Clínica Estética Jacyara Ponte\`;
+    }
+
+    // Enviar notificação para cada cliente
+    for (const cliente of clientes || []) {
+      try {
+        // Inserir na tabela de mensagens
+        const { error: erroInsercao } = await sb
+          .from('cliente_mensagens_motivacionais')
+          .insert({
+            cliente_id: cliente.id,
+            titulo: \`📢 \${titulo}\`,
+            body: corpoMensagem,
+            status: 'pendente_exibicao',
+            tipo_notificacao: 'push',
+            tipo_mensagem: 'promocao',
+            created_at: dataAtual
+          });
+
+        if (!erroInsercao) {
+          // Enviar notificação push ao navegador
+          if ('serviceWorker' in navigator && 'Notification' in window) {
+            if (Notification.permission === 'granted') {
+              navigator.serviceWorker.ready.then(registration => {
+                registration.showNotification(\`📢 \${titulo}\`, {
+                  body: mensagem,
+                  icon: '/favicon.ico',
+                  badge: '/favicon.ico',
+                  tag: \`promo-\${cliente.id}\`,
+                  requireInteraction: false,
+                  actions: incluirWhatsapp ? [
+                    {
+                      action: 'whatsapp',
+                      title: '💬 Falar no WhatsApp'
+                    }
+                  ] : []
+                });
+              });
+            }
+          }
+          enviadas++;
+        }
+      } catch (err) {
+        console.warn(\`Erro ao enviar para cliente \${cliente.nome}:\`, err);
+      }
+    }
+
+    console.log(\`✅ Promoção '\${titulo}' enviada para \${enviadas} clientes\`);
+    return { enviadas };
+  } catch (err) {
+    console.error('Erro ao criar/enviar promoção:', err);
+    throw err;
+  }
+}
+
 const MENSAGENS_CORPO = [
   { title: "💕 Sentimos sua falta!", body: "Olá {NOME}! Está na hora de continuar com {TRATAMENTO}. Lembre-se: consistência + hidratação = resultados incríveis! 💪💧" },
   { title: "🌟 Seu corpo agradece!", body: "{NOME}, seus músculos pedem continuidade! {TRATAMENTO} a cada semana + hidratação em dia = transformação! 🙌" },
@@ -3892,6 +4136,9 @@ async function enviarLembretes24hAntes() {
 
       const sucesso = await enviarNotificacaoMotivacional(cliente, 'lembrete_24h', dadosAjuste);
       if (sucesso) enviadas++;
+
+      // Também verificar previsão de chuva e avisar
+      await notificarClienteSobreChuva(agendamento);
     }
 
     console.log(`✅ ${enviadas} lembretes de 24h enviados`);
@@ -4086,6 +4333,159 @@ async function verificarAniversarios() {
   } catch (err) {
     console.error('Erro ao verificar aniversários:', err);
     return { parabenizados: 0 };
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+// PREVISÃO DE TEMPO - INTEGRAÇÃO COM WEATHER API
+// ═══════════════════════════════════════════════════════
+
+async function buscarPrevisaoTempo(data, hora) {
+  try {
+    const hoje = new Date();
+    const dataAgendamento = new Date(data);
+
+    // Se agendamento é para hoje, usar previsão de hoje
+    // Se for para amanhã ou depois, usar previsão para aquele dia
+    const diasAfrente = Math.floor((dataAgendamento - hoje) / (1000*60*60*24));
+
+    if (diasAfrente > 7) {
+      return null; // Não há previsão para mais de 7 dias
+    }
+
+    // Usar Open-Meteo API (grátis, sem API key)
+    const url = `https://api.open-meteo.com/v1/forecast?latitude=${CLINIC_LOCATION.lat}&longitude=${CLINIC_LOCATION.lon}&hourly=weather_code,precipitation_probability&timezone=auto&days=8`;
+
+    const cacheKey = `weather_${data}`;
+    if (weatherCache[cacheKey] && (Date.now() - weatherCache[cacheKey].timestamp) < 3600000) {
+      return weatherCache[cacheKey].data;
+    }
+
+    const response = await fetch(url);
+    const dados = await response.json();
+
+    if (!dados.hourly) {
+      console.warn('Previsão indisponível');
+      return null;
+    }
+
+    // Buscar hora específica
+    const dataFormatada = data.split('T')[0]; // YYYY-MM-DD
+    const horaInt = parseInt(hora.split(':')[0]); // 14 (de 14:00)
+
+    // Encontrar índice da hora no array
+    const horaStr = `${dataFormatada}T${String(horaInt).padStart(2, '0')}:00`;
+    const indices = dados.hourly.time;
+    const indiceHora = indices.indexOf(horaStr);
+
+    if (indiceHora === -1) {
+      return null;
+    }
+
+    const codigo = dados.hourly.weather_code[indiceHora];
+    const probabilidadeChuva = dados.hourly.precipitation_probability[indiceHora];
+
+    const previsao = {
+      codigo,
+      chuva: probabilidadeChuva > 40,
+      probabilidade: probabilidadeChuva,
+      descricao: interpretarCodigoClima(codigo),
+      timestamp: Date.now()
+    };
+
+    weatherCache[cacheKey] = { data: previsao, timestamp: Date.now() };
+    return previsao;
+  } catch (err) {
+    console.error('Erro ao buscar previsão:', err);
+    return null;
+  }
+}
+
+function interpretarCodigoClima(codigo) {
+  // WMO Weather interpretation codes
+  const descricoes = {
+    0: '☀️ Céu limpo',
+    1: '🌤️ Principalmente ensolarado',
+    2: '⛅ Parcialmente nublado',
+    3: '☁️ Nublado',
+    45: '🌫️ Neblina',
+    48: '🌫️ Neblina',
+    51: '🌧️ Garoa leve',
+    53: '🌧️ Garoa moderada',
+    55: '🌧️ Garoa densa',
+    61: '🌧️ Chuva leve',
+    63: '🌧️ Chuva moderada',
+    65: '⛈️ Chuva forte',
+    71: '❄️ Neve leve',
+    73: '❄️ Neve moderada',
+    75: '❄️ Neve densa',
+    77: '❄️ Grãos de neve',
+    80: '🌦️ Chuva leve',
+    81: '🌧️ Chuva moderada',
+    82: '⛈️ Chuva forte',
+    85: '❄️ Neve',
+    86: '❄️ Neve densa',
+    95: '⛈️ Trovoada',
+    96: '⛈️ Trovoada com granizo',
+    99: '⛈️ Trovoada com granizo forte'
+  };
+
+  return descricoes[codigo] || `Código ${codigo}`;
+}
+
+async function notificarClienteSobreChuva(agendamento) {
+  try {
+    const previsao = await buscarPrevisaoTempo(agendamento.data_horario, agendamento.hora_agendamento);
+
+    if (previsao && previsao.chuva && previsao.probabilidade > 40) {
+      const { data: cliente } = await sb.from('clientes')
+        .select('*')
+        .eq('id', agendamento.cliente_id)
+        .single();
+
+      if (cliente) {
+        const msgChuva = {
+          title: `${previsao.descricao} Aviso de Tempo`,
+          body: `${cliente.nome}, há previsão de ${previsao.descricao} (${previsao.probabilidade}% de chance) no horário de seu agendamento. Leve um guarda-chuva! ☔`
+        };
+
+        await enviarNotificacao(cliente, msgChuva, 'aviso_clima', {});
+        return true;
+      }
+    }
+    return false;
+  } catch (err) {
+    console.error('Erro ao notificar sobre chuva:', err);
+    return false;
+  }
+}
+
+// Verificar aniversários do mês (para exibir no admin)
+async function obterAniversariosDoMes() {
+  try {
+    const hoje = new Date();
+    const mes = String(hoje.getMonth() + 1).padStart(2, '0');
+
+    const { data: aniversariantes } = await sb.from('clientes')
+      .select('nome, data_nascimento, email')
+      .ilike('data_nascimento', `%-${mes}-%`)
+      .order('data_nascimento');
+
+    return (aniversariantes || []).map(a => {
+      const [ano, mês, dia] = a.data_nascimento.split('-');
+      const dataAniversario = new Date(hoje.getFullYear(), parseInt(mês) - 1, parseInt(dia));
+      const diasFaltam = Math.ceil((dataAniversario - hoje) / (1000*60*60*24));
+
+      return {
+        nome: a.nome,
+        data: a.data_nascimento,
+        diasFaltam: diasFaltam > 365 ? diasFaltam - 365 : diasFaltam,
+        hoje: diasFaltam === 0
+      };
+    });
+  } catch (err) {
+    console.error('Erro ao obter aniversários:', err);
+    return [];
   }
 }
 
