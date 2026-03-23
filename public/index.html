@@ -615,6 +615,78 @@ async function doLogout() {
 }
 
 // ═══════════════════════════════════════════════════════
+// CRIAR CONTA AUTOMÁTICA PARA CLIENTES
+// ═══════════════════════════════════════════════════════
+async function criarContaAutomaticamente(nome, email, telefone) {
+  try {
+    addChatMensagem('bot', '⏳ Criando sua conta...');
+    
+    // Gerar senha aleatória segura (12 caracteres)
+    const senhaGerada = Math.random().toString(36).substring(2, 8) + Math.random().toString(36).substring(2, 8);
+    
+    // Criar conta no Supabase Auth
+    const { data: authData, error: authError } = await sb.auth.signUp({
+      email: email,
+      password: senhaGerada,
+      options: {
+        data: {
+          nome: nome,
+          telefone: telefone
+        }
+      }
+    });
+    
+    if (authError) {
+      console.error('Erro ao criar conta:', authError);
+      if (authError.message.includes('already registered')) {
+        addChatMensagem('bot', '⚠️ Esse e-mail já está registrado. Use seu e-mail anterior ou entre em contato conosco.');
+      } else {
+        addChatMensagem('bot', '❌ Erro ao criar conta: ' + authError.message);
+      }
+      return;
+    }
+    
+    // Criar profile para o novo usuário
+    const { error: profileError } = await sb.from('profiles').insert({
+      id: authData.user.id,
+      nome: nome,
+      email: email,
+      telefone: telefone,
+      role: 'cliente'
+    });
+    
+    if (profileError) {
+      console.error('Erro ao criar perfil:', profileError);
+      addChatMensagem('bot', '⚠️ Conta criada, mas houve um erro no perfil. Entre em contato conosco.');
+      return;
+    }
+    
+    // Mostrar credenciais
+    addChatMensagem('bot', `✅ Conta criada com sucesso!\n\n📧 E-mail: ${email}\n🔐 Senha: ${senhaGerada}\n\n⚠️ Guarde essa senha em local seguro!\nVocê usará para acessar seu calendário de agendamentos.\n\n💬 Precisando? Enviaremos uma cópia pelo WhatsApp!`);
+    
+    setTimeout(() => {
+      const mensagemWhatsapp = `Olá ${nome}! Sua conta foi criada:\n\n📧 E-mail: ${email}\n🔐 Senha: ${senhaGerada}\n\nGuarde esses dados para acessar seus agendamentos. 🗓️`;
+      const whatsappLink = `https://wa.me/55${telefone}?text=${encodeURIComponent(mensagemWhatsapp)}`;
+      
+      if (confirm('Enviar credenciais pelo WhatsApp?')) {
+        window.open(whatsappLink, '_blank');
+      }
+      
+      // Mostrar instruções de download
+      addChatMensagem('bot', `📱 Quer baixar nosso app no celular?\n\n▶️ iOS: https://apps.apple.com/br/app/easy-schedule\n▶️ Android: https://play.google.com/store/apps/details?id=com.easyschedule\n\nOu acesse: https://clinicajacyaraponte.com\n\nObrigada por confiar em nós! 💕`);
+      
+      setTimeout(() => {
+        closeChatAgendamento();
+      }, 3000);
+    }, 2000);
+    
+  } catch (err) {
+    console.error('Erro inesperado:', err);
+    addChatMensagem('bot', '❌ Ocorreu um erro. Tente novamente.');
+  }
+}
+
+// ═══════════════════════════════════════════════════════
 // CHAT AUTOMÁTICO PARA AGENDAMENTO SEM LOGIN
 // ═══════════════════════════════════════════════════════
 let chatAgendamentoData = {
@@ -690,6 +762,30 @@ function processarChat(resposta) {
     data.hora = resposta;
     finalizarAgendamentoChat();
   }
+  else if (data.step === 'criar_conta') {
+    const resp = resposta.toLowerCase().trim();
+    if (resp === 'sim' || resp === 's') {
+      data.step = 'email';
+      addChatMensagem('bot', '📧 Qual é o seu e-mail? (Será usado para acessar sua conta)');
+    } else {
+      addChatMensagem('bot', 'Tudo bem! Você pode criar uma conta a qualquer momento. 😊');
+      setTimeout(() => {
+        const whatsappLink = `https://wa.me/55${data.telefone}?text=Olá! Confirmo meu agendamento.`;
+        if (confirm('Deseja abrir o WhatsApp para confirmar?')) {
+          window.open(whatsappLink, '_blank');
+        }
+        closeChatAgendamento();
+      }, 1500);
+    }
+  }
+  else if (data.step === 'email') {
+    const email = resposta.trim();
+    if (!email.includes('@')) {
+      addChatMensagem('bot', '❌ Por favor, digite um e-mail válido (ex: seu@email.com)');
+      return;
+    }
+    criarContaAutomaticamente(data.nome, email, data.telefone);
+  }
 }
 
 async function finalizarAgendamentoChat() {
@@ -732,14 +828,12 @@ async function finalizarAgendamentoChat() {
     setTimeout(() => {
       toast('✅ Agendamento recebido! Você será contatada em breve.', 'success');
       
-      // Após 3 segundos, abrir WhatsApp para confirmação
+      // Perguntar se quer criar conta
       setTimeout(() => {
-        if (confirm('Deseja abrir o WhatsApp para confirmar seu agendamento?')) {
-          window.open(whatsappLink, '_blank');
-        }
-        closeChatAgendamento();
-      }, 2000);
-    }, 1500);
+        addChatMensagem('bot', '💳 Gostaria de criar uma conta para acessar seus agendamentos e histórico? (Digite: Sim ou Não)');
+        chatAgendamentoData.step = 'criar_conta';
+      }, 1500);
+    }, 1000);
     
   } catch (err) {
     console.error('Erro inesperado:', err);
