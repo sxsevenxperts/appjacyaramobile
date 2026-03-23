@@ -819,20 +819,36 @@ async function finalizarAgendamentoChat() {
     }
     
     // Mensagem de confirmação
-    addChatMensagem('bot', `✅ Perfeito! Seu agendamento foi criado com sucesso!\n\n📞 Nome: ${data.nome}\n📱 Telefone: ${data.telefone}\n💅 Procedimento: ${data.procedimento}\n📅 Data: ${data.data}\n🕐 Horário: ${data.hora}\n\nEnviaremos uma confirmação por WhatsApp em breve. Obrigada! 💕`);
+    addChatMensagem('bot', `✅ Perfeito! Seu agendamento foi criado com sucesso!\n\n📞 Nome: ${data.nome}\n📱 Telefone: ${data.telefone}\n💅 Procedimento: ${data.procedimento}\n📅 Data: ${data.data}\n🕐 Horário: ${data.hora}\n\n⚠️ IMPORTANTE: Você precisa confirmar este agendamento clicando no botão abaixo!`);
     
-    // Link WhatsApp para enviar mensagem de confirmação
-    const mensagem = `Olá ${data.nome}! ✨ Seu agendamento foi confirmado:\n• Procedimento: ${data.procedimento}\n• Data: ${data.data}\n• Horário: ${data.hora}\n\nConfirmação: ${token}`;
-    const whatsappLink = `https://wa.me/55${data.telefone}?text=${encodeURIComponent(mensagem)}`;
+    // Mensagem para confirmar agendamento no WhatsApp da clínica
+    const mensagemConfirmacao = `Olá! Gostaria de confirmar meu agendamento:\n\n💅 Procedimento: ${data.procedimento}\n📅 Data: ${data.data}\n🕐 Horário: ${data.hora}\n👤 Nome: ${data.nome}\n📱 Telefone: ${data.telefone}\n\nToken de confirmação: ${token}`;
+    const whatsappClinica = `https://wa.me/5588992632509?text=${encodeURIComponent(mensagemConfirmacao)}`;
     
     setTimeout(() => {
-      toast('✅ Agendamento recebido! Você será contatada em breve.', 'success');
+      toast('✅ Agendamento recebido! Confirme via WhatsApp.', 'success');
+      
+      // Adicionar botão de confirmação
+      addChatMensagem('bot', '📱 Clique no botão abaixo para confirmar seu agendamento via WhatsApp da clínica:');
+      
+      // Criar botão de confirmação
+      const container = document.getElementById('chat-mensagens');
+      const btnDiv = document.createElement('div');
+      btnDiv.style.cssText = 'display:flex; justify-content:center; margin:12px 0;';
+      const btn = document.createElement('a');
+      btn.href = whatsappClinica;
+      btn.target = '_blank';
+      btn.style.cssText = 'display:inline-block; padding:12px 20px; background:#25d366; color:white; border-radius:8px; text-decoration:none; font-weight:bold; cursor:pointer; border:none; font-size:14px;';
+      btn.textContent = '✓ Confirmar Agendamento via WhatsApp';
+      btnDiv.appendChild(btn);
+      container.appendChild(btnDiv);
+      container.scrollTop = container.scrollHeight;
       
       // Perguntar se quer criar conta
       setTimeout(() => {
         addChatMensagem('bot', '💳 Gostaria de criar uma conta para acessar seus agendamentos e histórico? (Digite: Sim ou Não)');
         chatAgendamentoData.step = 'criar_conta';
-      }, 1500);
+      }, 2000);
     }, 1000);
     
   } catch (err) {
