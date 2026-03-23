@@ -2373,6 +2373,20 @@ function closeSidebarMobile() {
 // ═══════════════════════════════════════════════════════
 document.getElementById('login-email').addEventListener('keydown', e => { if(e.key==='Enter') document.getElementById('login-pass').focus(); });
 document.getElementById('login-pass').addEventListener('keydown', e => { if(e.key==='Enter') doLogin(); });
+
+// ═══════════════════════════════════════════════════════
+// SERVICE WORKER — register + force update
+// ═══════════════════════════════════════════════════════
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('./service-worker.js', { updateViaCache: 'none' })
+    .then(reg => {
+      console.log('✅ SW registrado');
+      // Force check for updates every 30 seconds
+      setInterval(() => reg.update(), 30000);
+    })
+    .catch(err => console.log('SW erro:', err));
+}
+console.log('Easy Shedulle v5 — ' + new Date().toISOString());
 </script>
 </body>
 </html>
