@@ -1193,9 +1193,11 @@ async function loadClinicaConfig() {
   const { data } = await sb.from('config_clinica').select('*');
   if (data) {
     APP.clinica = Object.fromEntries(data.map(r => [r.chave, r.valor]));
-    const nome = APP.clinica.nome_clinica || 'Clínica Estética';
-    document.getElementById('sidebar-clinic-name').textContent = nome;
-    document.getElementById('auth-clinic-name').textContent = nome;
+    const nome = APP.clinica.nome_clinica || 'Clínica Jacyara Ponte';
+    const elSidebar = document.getElementById('sidebar-clinic-name');
+    const elAuth = document.getElementById('auth-clinic-name');
+    if (elSidebar) elSidebar.textContent = nome;
+    if (elAuth) elAuth.textContent = nome;
     document.title = nome + ' — Agendamentos';
   }
 }
@@ -1569,8 +1571,7 @@ async function checkPacoteCliente() {
   const { data } = await sb.from('pacotes_cliente')
     .select(`*, procedimentos(nome)`)
     .eq('cliente_id', clienteId)
-    .eq('status','ativo')
-    .gt('total_sessoes', sb.rpc);
+    .eq('status','ativo');
 
   if (data && data.length > 0) {
     document.getElementById('ag-pacote').innerHTML =
@@ -1755,8 +1756,8 @@ async function confirmarAgendamento(id) {
       const cliente = agendamento.clientes;
       const dadosAjuste = {
         tratamento: agendamento.procedimento_nome || 'procedimento',
-        data: new Date(agendamento.data_horario).toLocaleDateString('pt-BR'),
-        hora: new Date(agendamento.data_horario).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+        data: new Date(agendamento.data_hora).toLocaleDateString('pt-BR'),
+        hora: new Date(agendamento.data_hora).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
       };
       await enviarNotificacaoMotivacional(cliente, 'confirmacao_agendamento', dadosAjuste);
 
@@ -3245,10 +3246,10 @@ async function renderNotificacoes() {
 
   const { data: agendamentos } = await sb.from('agendamentos')
     .select(`*, clientes(nome, telefone), procedimentos(nome)`)
-    .gte('data_horario', hoje)
-    .lte('data_horario', proximosDias + 'T23:59:59')
+    .gte('data_hora', hoje)
+    .lte('data_hora', proximosDias + 'T23:59:59')
     .eq('status', 'confirmado')
-    .order('data_horario');
+    .order('data_hora');
 
   // Buscar aniversários do mês
   const aniversariantes = await obterAniversariosDoMes();
@@ -3345,7 +3346,7 @@ async function renderNotificacoes() {
                 <div style="font-weight:600;color:var(--text)">${a.clientes?.nome || 'Cliente'}</div>
                 <div style="font-size:13px;color:var(--text2)">${a.procedimentos?.nome || 'Procedimento'}</div>
                 <div style="font-size:12px;color:var(--text3)">
-                  ${new Date(a.data_horario).toLocaleDateString('pt-BR', {weekday:'short', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit'})}
+                  ${new Date(a.data_hora).toLocaleDateString('pt-BR', {weekday:'short', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit'})}
                 </div>
               </div>
               <button class="btn btn-sm btn-success-sm" onclick="enviarLembreteManual('${a.cliente_id}', '${(a.clientes?.nome || '').replace(/'/g, "&#39;")}', '${a.procedimentos?.nome || 'procedimento'}')" style="border:none;padding:8px 12px;cursor:pointer">
@@ -3436,12 +3437,12 @@ async function verificarLimpezaFacialPeriodica() {
         .eq('cliente_id', cliente.id)
         .ilike('procedimento_nome', '%Limpeza de Pele%')
         .eq('status', 'concluido')
-        .order('data_horario', { ascending: false })
+        .order('data_hora', { ascending: false })
         .limit(1)
         .single();
 
       if (ultimaLimpeza) {
-        const dataUltima = new Date(ultimaLimpeza.data_horario);
+        const dataUltima = new Date(ultimaLimpeza.data_hora);
         const diasDesdeUltima = Math.floor((Date.now() - dataUltima) / (24*60*60*1000));
 
         // Se passou de 30 dias desde última limpeza, recomendar (agendar próxima por volta de 35-40 dias)
@@ -3482,7 +3483,7 @@ async function verificarProcedimentosCorporaisSemanal() {
         .select('*')
         .eq('cliente_id', cliente.id)
         .eq('status', 'concluido')
-        .order('data_horario', { ascending: false })
+        .order('data_hora', { ascending: false })
         .limit(1)
         .single();
 
@@ -3493,7 +3494,7 @@ async function verificarProcedimentosCorporaisSemanal() {
         );
 
         if (isCorporal) {
-          const dataUltimo = new Date(ultimoProcedimento.data_horario);
+          const dataUltimo = new Date(ultimoProcedimento.data_hora);
           const diasDesdeUltimo = Math.floor((Date.now() - dataUltimo) / (24*60*60*1000));
 
           // Se passou 7 dias desde último procedimento corporal, recomendar
@@ -3745,7 +3746,7 @@ async function criarEEnviarPromocao(titulo, mensagem, incluirWhatsapp) {
     let corpoMensagem = mensagem;
     if (incluirWhatsapp) {
       const whatsappLink = 'https://wa.me/5588992632509?text=Olá%20Jacyara!%20Vi%20sua%20promoção%20e%20gostaria%20de%20mais%20informações!';
-      corpoMensagem = \`📢 \${titulo}
+      corpoMensagem = `📢 \${titulo}
 
 💬 \${mensagem}
 
@@ -3753,13 +3754,13 @@ async function criarEEnviarPromocao(titulo, mensagem, incluirWhatsapp) {
 👉 https://wa.me/5588992632509
 
 Atendimento com Jacyara Ponte
-Clínica Estética Jacyara Ponte\`;
+Clínica Estética Jacyara Ponte`;
     } else {
-      corpoMensagem = \`📢 \${titulo}
+      corpoMensagem = `📢 \${titulo}
 
 💬 \${mensagem}
 
-✨ Clínica Estética Jacyara Ponte\`;
+✨ Clínica Estética Jacyara Ponte`;
     }
 
     // Enviar notificação para cada cliente
@@ -3770,7 +3771,7 @@ Clínica Estética Jacyara Ponte\`;
           .from('cliente_mensagens_motivacionais')
           .insert({
             cliente_id: cliente.id,
-            titulo: \`📢 \${titulo}\`,
+            titulo: `📢 \${titulo}`,
             body: corpoMensagem,
             status: 'pendente_exibicao',
             tipo_notificacao: 'push',
@@ -3783,11 +3784,11 @@ Clínica Estética Jacyara Ponte\`;
           if ('serviceWorker' in navigator && 'Notification' in window) {
             if (Notification.permission === 'granted') {
               navigator.serviceWorker.ready.then(registration => {
-                registration.showNotification(\`📢 \${titulo}\`, {
+                registration.showNotification(`📢 \${titulo}`, {
                   body: mensagem,
                   icon: '/favicon.ico',
                   badge: '/favicon.ico',
-                  tag: \`promo-\${cliente.id}\`,
+                  tag: `promo-\${cliente.id}`,
                   requireInteraction: false,
                   actions: incluirWhatsapp ? [
                     {
@@ -3802,11 +3803,11 @@ Clínica Estética Jacyara Ponte\`;
           enviadas++;
         }
       } catch (err) {
-        console.warn(\`Erro ao enviar para cliente \${cliente.nome}:\`, err);
+        console.warn(`Erro ao enviar para cliente \${cliente.nome}:`, err);
       }
     }
 
-    console.log(\`✅ Promoção '\${titulo}' enviada para \${enviadas} clientes\`);
+    console.log(`✅ Promoção '\${titulo}' enviada para \${enviadas} clientes`);
     return { enviadas };
   } catch (err) {
     console.error('Erro ao criar/enviar promoção:', err);
@@ -3948,7 +3949,7 @@ async function enviarMensagensMotivacionais() {
           .select('*, procedimentos(nome)')
           .eq('cliente_id', cliente.id)
           .eq('status', 'concluido')
-          .order('data_horario', { ascending: false })
+          .order('data_hora', { ascending: false })
           .limit(1)
           .single();
 
@@ -4102,8 +4103,8 @@ async function enviarNotificacaoMotivacional(cliente, tipoMensagem = 'confirmaca
 async function confirmarAgendamentoComNotificacao(agendamentoId, cliente, agendamento) {
   try {
     const dadosAjuste = {
-      data: new Date(agendamento.data_horario).toLocaleDateString('pt-BR'),
-      hora: new Date(agendamento.data_horario).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+      data: new Date(agendamento.data_hora).toLocaleDateString('pt-BR'),
+      hora: new Date(agendamento.data_hora).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
       tratamento: agendamento.procedimento_nome || 'procedimento'
     };
 
@@ -4126,8 +4127,8 @@ async function enviarLembretes24hAntes() {
     // Buscar agendamentos para amanhã
     const { data: agendamentos } = await sb.from('agendamentos')
       .select('*, clientes(nome, email, telefone), procedimentos(nome)')
-      .gte('data_horario', `${dataAmanha}T${horaMin}`)
-      .lte('data_horario', `${dataAmanha}T${horaMax}`)
+      .gte('data_hora', `${dataAmanha}T${horaMin}`)
+      .lte('data_hora', `${dataAmanha}T${horaMax}`)
       .eq('status', 'confirmado');
 
     let enviadas = 0;
@@ -4135,7 +4136,7 @@ async function enviarLembretes24hAntes() {
       const cliente = agendamento.clientes || {};
       const dadosAjuste = {
         tratamento: agendamento.procedimentos?.nome || 'procedimento',
-        hora: new Date(agendamento.data_horario).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+        hora: new Date(agendamento.data_hora).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
       };
 
       const sucesso = await enviarNotificacaoMotivacional(cliente, 'lembrete_24h', dadosAjuste);
@@ -4201,7 +4202,7 @@ async function notificarConclusaoProtocolo(clienteId) {
           .select('procedimentos(nome)')
           .eq('cliente_id', clienteId)
           .eq('status', 'concluido')
-          .order('data_horario', { ascending: false })
+          .order('data_hora', { ascending: false })
           .limit(1)
           .single();
 
@@ -4439,7 +4440,7 @@ function interpretarCodigoClima(codigo) {
 
 async function notificarClienteSobreChuva(agendamento) {
   try {
-    const previsao = await buscarPrevisaoTempo(agendamento.data_horario, agendamento.hora_agendamento);
+    const previsao = await buscarPrevisaoTempo(agendamento.data_hora, agendamento.hora_agendamento);
 
     if (previsao && previsao.chuva && previsao.probabilidade > 40) {
       const { data: cliente } = await sb.from('clientes')
