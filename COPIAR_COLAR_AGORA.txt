@@ -1,0 +1,66 @@
+═══════════════════════════════════════════════════════════════════════════════
+                           COPIAR E COLAR - AGORA!
+═══════════════════════════════════════════════════════════════════════════════
+
+INSTRUÇÕES:
+
+1. Abra: https://supabase.com/dashboard
+2. Clique no projeto: "Clínica Estética Jacyara Ponte"
+3. Menu esquerdo → SQL Editor → [+ New Query]
+4. COPIE TODO O CÓDIGO ABAIXO (de linha em linha)
+5. COLE no editor
+6. Clique [RUN]
+7. PRONTO!
+
+═══════════════════════════════════════════════════════════════════════════════
+
+COPIE EXATAMENTE ISTO E COLE:
+
+─────────────────────────────────────────────────────────────────────────────
+
+ALTER TABLE cliente_mensagens_motivacionais
+ADD COLUMN IF NOT EXISTS tipo_mensagem TEXT DEFAULT 'motivacional';
+
+CREATE INDEX IF NOT EXISTS idx_cliente_msg_tipo_msg
+ON cliente_mensagens_motivacionais(cliente_id, tipo_mensagem);
+
+CREATE INDEX IF NOT EXISTS idx_msg_promo_data
+ON cliente_mensagens_motivacionais(tipo_mensagem, created_at DESC);
+
+─────────────────────────────────────────────────────────────────────────────
+
+COMO COPIAR:
+
+1. Aperte na tela 3 vezes para selecionar tudo
+2. Ou: Clique uma vez no início
+   - Segure SHIFT
+   - Clique no final
+3. Pressione: Ctrl + C (Windows) ou Cmd + C (Mac)
+
+═══════════════════════════════════════════════════════════════════════════════
+
+COMO COLAR NO SUPABASE:
+
+1. Clique na área branca do SQL Editor
+2. Pressione: Ctrl + V (Windows) ou Cmd + V (Mac)
+3. O código aparece automaticamente
+4. Não mude nada, deixa exatamente como está
+
+═══════════════════════════════════════════════════════════════════════════════
+
+DEPOIS:
+
+1. Clique no botão [RUN] (canto inferior direito)
+2. Aguarde 5 segundos
+3. Se aparecer:
+   ✅ "Query successful!" → SUCESSO! 🎉
+   ou
+   ⚠️ "already exists" → Tudo bem, já estava criado ✅
+
+═══════════════════════════════════════════════════════════════════════════════
+
+PRONTO! Sua Migration foi executada!
+
+Agora você pode criar promoções relâmpago no seu app! 🚀
+
+═══════════════════════════════════════════════════════════════════════════════
