@@ -383,14 +383,12 @@ tr:hover td { background: #fdf4fb; }
     <div class="auth-err hidden" id="auth-err"></div>
 
     <div style="margin-top:20px;padding-top:16px;border-top:1px solid #f0d5e5;text-align:center;">
-      <p style="font-size:12px;color:var(--text3);margin-bottom:12px;">Já tem cadastro?</p>
-      <p style="font-size:12px;color:var(--text2);margin-bottom:12px; line-height:1.5;">
-        ✅ Utilize suas credenciais acima para acessar sua agenda e agendar procedimentos
-      </p>
-      <div style="background:#fef3c7; border:1px solid #fbbf24; border-radius:8px; padding:10px; font-size:11px; color:var(--text); line-height:1.4; margin-top:12px;">
-        <strong style="display:block; margin-bottom:6px;">ℹ️ Agendamento Exclusivo para Clientes Verificados</strong>
-        <p style="margin:0;">Apenas clientes com conta criada e verificada pela administração podem agendar procedimentos. Entre em contato com a clínica para criar sua conta.</p>
+      <p style="font-size:12px;color:var(--text3);margin-bottom:12px;">Não tem cadastro?</p>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:12px;">
+        <button class="btn-primary" style="background:linear-gradient(135deg, #d4b5d4 0%, #c4a4c4 100%); font-size:12px;" onclick="openCriarContaCliente()">👤 Criar Conta</button>
+        <button class="btn-primary" style="background:linear-gradient(135deg, #d4b5d4 0%, #c4a4c4 100%); font-size:12px;" onclick="openChatAgendamento()">💬 Agendar Chat</button>
       </div>
+      <p style="font-size:11px; color:var(--text3); margin:0;">Acesso rápido sem necessidade de login</p>
     </div>
 
     <div style="margin-top:28px;padding-top:16px;border-top:1px solid #f0e0ee;font-size:10px;color:#999;text-align:center;">
@@ -864,51 +862,22 @@ let chatAgendamentoData = {
   hora: ''
 };
 
-async function openChatAgendamento() {
-  // Verificar se usuário está logado
-  if (!APP.user) {
-    toast('❌ Você precisa estar logado para agendar. Acesse sua conta.', 'error');
-    return;
-  }
-
-  // Verificar se cliente está verificado pela admin
-  const { data: verificacao, error } = await sb
-    .from('cliente_verificacao')
-    .select('status')
-    .eq('cliente_id', APP.user.id)
-    .single();
-
-  if (error || !verificacao) {
-    toast('⏳ Sua conta ainda está em análise. Aguarde a verificação da administração.', 'warning');
-    return;
-  }
-
-  if (verificacao.status === 'pendente') {
-    toast('⏳ Sua conta ainda está em análise. Aguarde a verificação da administração.', 'warning');
-    return;
-  }
-
-  if (verificacao.status === 'rejeitado') {
-    toast('❌ Sua conta foi rejeitada. Entre em contato com a clínica.', 'error');
-    return;
-  }
-
-  // Se status é 'verificado', permite agendar
-  if (verificacao.status === 'verificado') {
-    document.getElementById('chat-agendamento-modal').style.display = 'flex';
-    chatAgendamentoData = { 
-      step: 'validacao_nome', 
-      nome: APP.profile?.nome || '', 
-      telefone: APP.profile?.telefone || '',
-      procedimento: '', 
-      data: '', 
-      hora: '',
-      nomeConfirmado: false,
-      telefoneConfirmado: false
-    };
-    document.getElementById('chat-mensagens').innerHTML = '';
-    addChatMensagem('bot', `Olá ${APP.profile?.nome || 'Maria'}! 👋\n\nAntes de agendar, vamos confirmar seus dados.\n\n✏️ Seu nome está correto? "${APP.profile?.nome || ''}"?\n(Responda: Sim ou Não)`);
-  }
+function openChatAgendamento() {
+  // Chat sem login - começa perguntando nome e telefone para validação
+  document.getElementById('chat-agendamento-modal').style.display = 'flex';
+  chatAgendamentoData = { 
+    step: 'nome', 
+    nome: '', 
+    telefone: '',
+    procedimento: '', 
+    data: '', 
+    hora: '',
+    clienteId: null,
+    nomeValidado: false,
+    telefoneValidado: false
+  };
+  document.getElementById('chat-mensagens').innerHTML = '';
+  addChatMensagem('bot', 'Olá! 👋 Bem-vinda ao agendamento. Qual é o seu nome completo?');
 }
 
 function closeChatAgendamento() {
@@ -937,63 +906,30 @@ function enviarMensagemChat() {
   setTimeout(() => processarChat(resposta), 300);
 }
 
-function processarChat(resposta) {
+async function processarChat(resposta) {
   const data = chatAgendamentoData;
 
-  // Validação de Nome
-  if (data.step === 'validacao_nome') {
-    const resp = resposta.toLowerCase().trim();
-    if (resp === 'sim' || resp === 's') {
-      data.nomeConfirmado = true;
-      data.step = 'validacao_telefone';
-      addChatMensagem('bot', `📱 Seu telefone está correto? "${data.telefone}"?\n(Responda: Sim ou Não)`);
-    } else if (resp === 'não' || resp === 'nao' || resp === 'n') {
-      data.step = 'editar_nome';
-      addChatMensagem('bot', 'Ok! 📝 Digite o seu nome correto:');
-    } else {
-      addChatMensagem('bot', '⚠️ Por favor, responda com "Sim" ou "Não"');
-    }
-  }
-  
-  // Editar Nome
-  else if (data.step === 'editar_nome') {
+  // Step 1: Coletar Nome
+  if (data.step === 'nome') {
     data.nome = resposta.trim();
     if (data.nome.length < 3) {
-      addChatMensagem('bot', '⚠️ O nome deve ter pelo menos 3 caracteres. Tente novamente:');
+      addChatMensagem('bot', '⚠️ O nome deve ter pelo menos 3 caracteres. Digite novamente:');
       return;
     }
-    data.nomeConfirmado = true;
-    data.step = 'validacao_telefone';
-    addChatMensagem('bot', `📱 Seu telefone está correto? "${data.telefone}"?\n(Responda: Sim ou Não)`);
+    data.step = 'telefone';
+    addChatMensagem('bot', 'Obrigada! 😊 Qual é o seu telefone com DDD? (Ex: 11 99999-9999)');
   }
-
-  // Validação de Telefone
-  else if (data.step === 'validacao_telefone') {
-    const resp = resposta.toLowerCase().trim();
-    if (resp === 'sim' || resp === 's') {
-      data.telefoneConfirmado = true;
-      data.step = 'procedimento';
-      const procs = 'Botox, Preenchimento, Peeling, Limpeza Facial, Massagem, Microagulhagem';
-      addChatMensagem('bot', `✅ Ótimo! Seus dados estão validados.\n\n💅 Qual procedimento você gostaria? ${procs}?`);
-    } else if (resp === 'não' || resp === 'nao' || resp === 'n') {
-      data.step = 'editar_telefone';
-      addChatMensagem('bot', 'Ok! 📝 Digite o seu telefone correto com DDD (Ex: 11 99999-9999):');
-    } else {
-      addChatMensagem('bot', '⚠️ Por favor, responda com "Sim" ou "Não"');
-    }
-  }
-
-  // Editar Telefone
-  else if (data.step === 'editar_telefone') {
+  // Step 2: Coletar Telefone
+  else if (data.step === 'telefone') {
     data.telefone = resposta.replace(/\D/g, '');
     if (data.telefone.length < 11) {
-      addChatMensagem('bot', '⚠️ O telefone deve ter 11 dígitos com DDD. Tente novamente:');
+      addChatMensagem('bot', '⚠️ O telefone deve ter 11 dígitos com DDD. Digite novamente:');
       return;
     }
-    data.telefoneConfirmado = true;
-    data.step = 'procedimento';
-    const procs = 'Botox, Preenchimento, Peeling, Limpeza Facial, Massagem, Microagulhagem';
-    addChatMensagem('bot', `✅ Ótimo! Seus dados estão validados.\n\n💅 Qual procedimento você gostaria? ${procs}?`);
+    // Validar dados no banco de dados
+    data.step = 'validando';
+    addChatMensagem('bot', '🔍 Validando seus dados...');
+    await validarClientePorNomeETelefone(data.nome, data.telefone);
   }
   else if (data.step === 'telefone') {
     data.telefone = resposta.replace(/\D/g, '');
@@ -1011,11 +947,23 @@ function processarChat(resposta) {
     addChatMensagem('bot', 'Ótimo! 💅 Qual data você prefere? (Ex: 25/03/2026)');
   }
   else if (data.step === 'data') {
+    // Validar formato de data
+    const dataRegex = /^(\d{2})\/(\d{2})\/(\d{4})$/;
+    if (!dataRegex.test(resposta)) {
+      addChatMensagem('bot', '⚠️ Data inválida. Use o formato DD/MM/YYYY (Ex: 25/03/2026)');
+      return;
+    }
     data.data = resposta;
     data.step = 'hora';
     addChatMensagem('bot', 'E qual horário? (Ex: 14:30)');
   }
   else if (data.step === 'hora') {
+    // Validar formato de hora
+    const horaRegex = /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/;
+    if (!horaRegex.test(resposta)) {
+      addChatMensagem('bot', '⚠️ Horário inválido. Use o formato HH:MM (Ex: 14:30)');
+      return;
+    }
     data.hora = resposta;
     finalizarAgendamentoChat();
   }
@@ -1056,27 +1004,55 @@ async function finalizarAgendamentoChat() {
     // Gerar token de confirmação único
     const token = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
     
-    // Salvar no Supabase
-    const { data: inserted, error } = await sb.from('agendamentos_publicos').insert({
-      cliente_nome: data.nome,
-      cliente_telefone: data.telefone,
-      procedimento: data.procedimento,
-      data_agendamento: dataFormatada,
-      hora_agendamento: data.hora + ':00',
-      status: 'pendente',
-      origem: 'chat',
-      token_confirmacao: token,
-      criado_em: new Date().toISOString(),
-    });
-    
-    if (error) {
-      console.error('Erro ao salvar agendamento:', error);
-      addChatMensagem('bot', '❌ Desculpe, houve um erro ao processar seu agendamento. Por favor, tente novamente ou entre em contato conosco.');
-      return;
+    // Se cliente foi validado no banco, criar agendamento com cliente_id
+    if (data.clienteId) {
+      const { data: inserted, error } = await sb.from('agendamentos').insert({
+        cliente_id: data.clienteId,
+        procedimento: data.procedimento,
+        data_agendamento: dataFormatada,
+        hora_agendamento: data.hora + ':00',
+        status: 'agendado',
+        origem: 'chat',
+        token_confirmacao: token,
+        criado_em: new Date().toISOString(),
+      });
+      
+      if (error) throw error;
+    } else {
+      // Fallback para agendamento público (cliente não validado)
+      const { data: inserted, error } = await sb.from('agendamentos_publicos').insert({
+        cliente_nome: data.nome,
+        cliente_telefone: data.telefone,
+        procedimento: data.procedimento,
+        data_agendamento: dataFormatada,
+        hora_agendamento: data.hora + ':00',
+        status: 'pendente',
+        origem: 'chat',
+        token_confirmacao: token,
+        criado_em: new Date().toISOString(),
+      });
+      
+      if (error) throw error;
     }
     
-    // Mensagem de confirmação
-    addChatMensagem('bot', `✅ Perfeito! Seu agendamento foi criado com sucesso!\n\n📞 Nome: ${data.nome}\n📱 Telefone: ${data.telefone}\n💅 Procedimento: ${data.procedimento}\n📅 Data: ${data.data}\n🕐 Horário: ${data.hora}\n\n⚠️ IMPORTANTE: Você precisa confirmar este agendamento clicando no botão abaixo!`);
+    // Mensagem de confirmação (personalizada se cliente foi validado)
+    let nomeDisplay = data.clienteNome || data.nome;
+    let telefoneDisplay = data.clienteTelefone || data.telefone;
+    
+    let mensagem = `✅ Perfeito! Seu agendamento foi criado com sucesso!\n\n`;
+    mensagem += `👤 Nome: ${nomeDisplay}\n`;
+    mensagem += `📱 Telefone: ${telefoneDisplay.replace(/(\d{2})(\d{5})(\d{4})/, '($1) $2-$3')}\n`;
+    mensagem += `💅 Procedimento: ${data.procedimento}\n`;
+    mensagem += `📅 Data: ${data.data}\n`;
+    mensagem += `🕐 Horário: ${data.hora}\n\n`;
+    
+    if (data.clienteId) {
+      mensagem += `✨ Agendamento confirmado em nossa agenda!\n`;
+    } else {
+      mensagem += `⚠️ IMPORTANTE: Você precisa confirmar este agendamento clicando no botão abaixo!\n`;
+    }
+    
+    addChatMensagem('bot', mensagem);
     
     // Mensagem para confirmar agendamento no WhatsApp da clínica
     const mensagemConfirmacao = `Olá! Gostaria de confirmar meu agendamento:\n\n💅 Procedimento: ${data.procedimento}\n📅 Data: ${data.data}\n🕐 Horário: ${data.hora}\n👤 Nome: ${data.nome}\n📱 Telefone: ${data.telefone}\n\nToken de confirmação: ${token}`;
@@ -3711,6 +3687,83 @@ async function carregarEstatisticasReferral() {
     }
   } catch (err) {
     console.error('Erro ao carregar estatísticas:', err);
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+// VALIDAÇÃO DE CLIENTE NO CHAT
+// ═══════════════════════════════════════════════════════
+
+async function validarClientePorNomeETelefone(nome, telefone) {
+  try {
+    // Buscar cliente na base de dados
+    const { data: cliente, error } = await sb
+      .from('clientes')
+      .select('*')
+      .ilike('nome', nome.trim())
+      .eq('telefone', telefone)
+      .single();
+
+    if (error || !cliente) {
+      addChatMensagem('bot', `❌ Desculpe, não encontramos nenhum cliente com:\n👤 Nome: ${nome}\n📱 Telefone: ${telefone.replace(/(\d{2})(\d{5})(\d{4})/, '($1) $2-$3')}\n\nVerifique os dados e tente novamente, ou entre em contato com a clínica.`);
+      chatAgendamentoData.step = 'nome';
+      return;
+    }
+
+    // Cliente encontrado! Armazenar dados
+    chatAgendamentoData.clienteId = cliente.id;
+    chatAgendamentoData.clienteNome = cliente.nome;
+    chatAgendamentoData.clienteTelefone = cliente.telefone;
+
+    // Buscar agendamentos futuros da cliente
+    const hoje = new Date().toISOString().slice(0, 10);
+    const { data: agendamentos } = await sb
+      .from('v_agendamentos')
+      .select('*')
+      .eq('cliente_id', cliente.id)
+      .gte('data_hora', hoje)
+      .order('data_hora', { ascending: true })
+      .limit(3);
+
+    // Buscar procedimentos completados recentemente
+    const { data: procedimentosCompletos } = await sb
+      .from('v_agendamentos')
+      .select('*')
+      .eq('cliente_id', cliente.id)
+      .eq('status', 'concluido')
+      .order('data_hora', { ascending: false })
+      .limit(2);
+
+    // Mensagem de boas-vindas com dados da paciente
+    let mensagem = `✅ Bem-vinda de volta, ${cliente.nome}! 💕\n\n`;
+    
+    if (agendamentos && agendamentos.length > 0) {
+      mensagem += `📅 Seus próximos agendamentos:\n`;
+      agendamentos.forEach((ag, idx) => {
+        const data = new Date(ag.data_hora).toLocaleDateString('pt-BR');
+        const hora = new Date(ag.data_hora).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+        mensagem += `${idx + 1}. ${data} às ${hora} - ${ag.procedimento_nome || ag.procedimento_nome_custom}\n`;
+      });
+    } else {
+      mensagem += `⏳ Você não tem agendamentos futuros.\n`;
+    }
+
+    if (procedimentosCompletos && procedimentosCompletos.length > 0) {
+      mensagem += `\n🎉 Último procedimento:\n`;
+      const ultimo = procedimentosCompletos[0];
+      const data = new Date(ultimo.data_hora).toLocaleDateString('pt-BR');
+      mensagem += `${ultimo.procedimento_nome || ultimo.procedimento_nome_custom} em ${data}\n`;
+    }
+
+    mensagem += `\n💅 Qual procedimento gostaria de agendar hoje?`;
+    
+    chatAgendamentoData.step = 'procedimento';
+    addChatMensagem('bot', mensagem);
+
+  } catch (err) {
+    console.error('Erro ao validar cliente:', err);
+    addChatMensagem('bot', '❌ Desculpe, houve um erro ao validar seus dados. Tente novamente.');
+    chatAgendamentoData.step = 'nome';
   }
 }
 
