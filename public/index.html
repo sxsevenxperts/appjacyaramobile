@@ -491,7 +491,10 @@ tr:hover td { background: #fdf4fb; }
     
     <input type="text" id="criar-conta-nome" placeholder="Seu nome completo" style="width:100%; padding:10px; border:1.5px solid var(--border); border-radius:8px; font-size:14px; margin-bottom:10px; box-sizing:border-box;">
     <input type="email" id="criar-conta-email" placeholder="Seu e-mail" style="width:100%; padding:10px; border:1.5px solid var(--border); border-radius:8px; font-size:14px; margin-bottom:10px; box-sizing:border-box;">
-    <input type="tel" id="criar-conta-telefone" placeholder="Telefone (opcional)" style="width:100%; padding:10px; border:1.5px solid var(--border); border-radius:8px; font-size:14px; margin-bottom:14px; box-sizing:border-box;">
+    <input type="tel" id="criar-conta-telefone" placeholder="Telefone (opcional)" style="width:100%; padding:10px; border:1.5px solid var(--border); border-radius:8px; font-size:14px; margin-bottom:10px; box-sizing:border-box;">
+    <input type="date" id="criar-conta-data-nasc" placeholder="Data de nascimento" style="width:100%; padding:10px; border:1.5px solid var(--border); border-radius:8px; font-size:14px; margin-bottom:10px; box-sizing:border-box;">
+    <input type="password" id="criar-conta-senha" placeholder="Escolha uma senha" style="width:100%; padding:10px; border:1.5px solid var(--border); border-radius:8px; font-size:14px; margin-bottom:10px; box-sizing:border-box;">
+    <input type="password" id="criar-conta-senha-conf" placeholder="Confirme a senha" style="width:100%; padding:10px; border:1.5px solid var(--border); border-radius:8px; font-size:14px; margin-bottom:14px; box-sizing:border-box;">
     
     <div id="criar-conta-erro" class="hidden" style="color:var(--danger); font-size:12px; margin-bottom:10px; padding:8px; background:#ffe5e5; border-radius:6px;"></div>
     
@@ -501,7 +504,7 @@ tr:hover td { background: #fdf4fb; }
     </div>
     
     <p style="font-size:11px; color:var(--text3); margin-top:12px; text-align:center;">
-      💡 A senha será gerada automaticamente e enviada para seu e-mail
+      🔐 Crie uma senha segura para sua conta
     </p>
   </div>
 </div>
@@ -666,6 +669,9 @@ function openCriarContaCliente() {
   document.getElementById('criar-conta-nome').value = '';
   document.getElementById('criar-conta-email').value = '';
   document.getElementById('criar-conta-telefone').value = '';
+  document.getElementById('criar-conta-senha').value = '';
+  document.getElementById('criar-conta-senha-conf').value = '';
+  document.getElementById('criar-conta-data-nasc').value = '';
   document.getElementById('criar-conta-erro').innerHTML = '';
   document.getElementById('criar-conta-erro').classList.add('hidden');
 }
@@ -679,6 +685,9 @@ async function executarCriarConta() {
   const nome = document.getElementById('criar-conta-nome').value.trim();
   const email = document.getElementById('criar-conta-email').value.trim();
   const telefone = document.getElementById('criar-conta-telefone').value.trim();
+  const senha = document.getElementById('criar-conta-senha').value;
+  const senhaConf = document.getElementById('criar-conta-senha-conf').value;
+  const dataNasc = document.getElementById('criar-conta-data-nasc').value;
   const erroEl = document.getElementById('criar-conta-erro');
   
   // Validar
@@ -692,25 +701,37 @@ async function executarCriarConta() {
     erroEl.classList.remove('hidden');
     return;
   }
+  if (!senha || senha.length < 6) {
+    erroEl.innerHTML = '❌ Escolha uma senha com no mínimo 6 caracteres';
+    erroEl.classList.remove('hidden');
+    return;
+  }
+  if (senha !== senhaConf) {
+    erroEl.innerHTML = '❌ As senhas não conferem';
+    erroEl.classList.remove('hidden');
+    return;
+  }
+  if (!dataNasc) {
+    erroEl.innerHTML = '❌ Por favor, informe sua data de nascimento';
+    erroEl.classList.remove('hidden');
+    return;
+  }
   
   // Chamar função de criação
-  await criarContaClienteLogin(nome, email, telefone);
+  await criarContaClienteLogin(nome, email, telefone, senha, dataNasc);
 }
 
-async function criarContaClienteLogin(nome, email, telefone) {
+async function criarContaClienteLogin(nome, email, telefone, senha, dataNasc) {
   const erroEl = document.getElementById('criar-conta-erro');
   
   try {
     erroEl.innerHTML = '';
     erroEl.classList.add('hidden');
     
-    // Gerar senha
-    const senhaGerada = Math.random().toString(36).substring(2, 8) + Math.random().toString(36).substring(2, 8);
-    
-    // Criar conta
+    // Criar conta com a senha fornecida
     const { data: authData, error: authError } = await sb.auth.signUp({
       email: email,
-      password: senhaGerada,
+      password: senha,
       options: {
         data: {
           nome: nome,
@@ -735,6 +756,7 @@ async function criarContaClienteLogin(nome, email, telefone) {
       nome: nome,
       email: email,
       telefone: telefone,
+      data_nascimento: dataNasc,
       role: 'cliente'
     });
     
@@ -755,18 +777,18 @@ async function criarContaClienteLogin(nome, email, telefone) {
       showModal(`<div class="modal" style="max-width:420px;text-align:center">
         <div style="font-size:40px;margin-bottom:16px">✅</div>
         <h3 style="margin-bottom:8px">Bem-vinda!</h3>
-        <p style="color:var(--text2);margin-bottom:16px">Sua conta foi criada e você já tem acesso ao app</p>
+        <p style="color:var(--text2);margin-bottom:16px">Sua conta foi criada com sucesso! 🎉</p>
         
         <div style="background:var(--surface2);padding:16px;border-radius:10px;margin-bottom:16px;text-align:left">
-          <p style="font-size:12px;color:var(--text3);margin:0 0 4px 0">📧 E-mail:</p>
-          <p style="font-size:14px;font-weight:bold;margin:0 0 12px 0">${email}</p>
+          <p style="font-size:12px;color:var(--text3);margin:0 0 4px 0">👤 Nome:</p>
+          <p style="font-size:14px;font-weight:bold;margin:0 0 12px 0">${nome}</p>
           
-          <p style="font-size:12px;color:var(--text3);margin:0 0 4px 0">🔐 Senha:</p>
-          <p style="font-size:14px;font-weight:bold;margin:0;font-family:monospace;word-break:break-all">${senhaGerada}</p>
+          <p style="font-size:12px;color:var(--text3);margin:0 0 4px 0">📧 E-mail:</p>
+          <p style="font-size:14px;font-weight:bold;margin:0">${email}</p>
         </div>
         
         <p style="font-size:11px;color:var(--text3);margin-bottom:16px">
-          💾 Guarde sua senha para futuros acessos
+          Você pode agora fazer login com seu e-mail e senha
         </p>
         
         <button class="btn btn-primary" onclick="closeModal();" style="width:100%;padding:12px;background:var(--primary);color:white;border:none;border-radius:8px;cursor:pointer;font-weight:bold;">
@@ -776,7 +798,7 @@ async function criarContaClienteLogin(nome, email, telefone) {
       
       // Fazer login automático após 1 segundo
       setTimeout(async () => {
-        const { error } = await sb.auth.signInWithPassword({ email: email, password: senhaGerada });
+        const { error } = await sb.auth.signInWithPassword({ email: email, password: senha });
         if (!error) {
           closeModal();
           toast('🎉 Você está logada!', 'success');
