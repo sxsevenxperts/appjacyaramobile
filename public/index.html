@@ -419,6 +419,53 @@
             margin-top: 2px;
         }
 
+        .client-card {
+            background: #f9f9f9;
+            padding: 16px;
+            border-radius: 14px;
+            margin-bottom: 12px;
+            border-left: 4px solid #d47a94;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+        }
+
+        .client-name {
+            font-size: 15px;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 8px;
+        }
+
+        .client-info {
+            font-size: 12px;
+            color: #666;
+            line-height: 1.6;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .client-info-item {
+            display: flex;
+            gap: 8px;
+        }
+
+        .client-info-label {
+            font-weight: 600;
+            color: #8b4d7a;
+            min-width: 80px;
+        }
+
+        .client-treatment {
+            display: inline-block;
+            background: #e8d5e8;
+            color: #8b4d7a;
+            padding: 4px 10px;
+            border-radius: 8px;
+            font-size: 11px;
+            font-weight: 600;
+            margin-top: 8px;
+        }
+
         @media (max-width: 480px) {
             .header {
                 padding: 24px 16px;
@@ -542,24 +589,41 @@
                 <div class="section">
                     <div class="section-title">Cadastrar Cliente</div>
                     <div class="input-group">
-                        <label>Nome</label>
-                        <input type="text" id="newClientName" placeholder="Nome completo">
+                        <label>Nome Completo</label>
+                        <input type="text" id="newClientName" placeholder="Ex: Maria Silva Santos">
                     </div>
                     <div class="input-group">
-                        <label>Telefone</label>
-                        <input type="tel" id="newClientPhone" placeholder="(XX) XXXXX-XXXX">
+                        <label>Celular (DDD + Número)</label>
+                        <input type="tel" id="newClientPhone" placeholder="(11) 99999-9999" maxlength="15">
                     </div>
                     <div class="input-group">
-                        <label>Email</label>
-                        <input type="email" id="newClientEmail" placeholder="email@example.com">
+                        <label>Tratamento</label>
+                        <select id="newClientTreatment" style="width: 100%; padding: 12px 14px; border: 1.5px solid #e8d0d8; border-radius: 12px; font-size: 14px; font-family: inherit; cursor: pointer;">
+                            <option value="">Selecione um tratamento</option>
+                            <option value="limpeza-pele">Limpeza de Pele</option>
+                            <option value="micropigmentacao">Micropigmentação</option>
+                            <option value="peeling">Peeling Químico</option>
+                            <option value="laser">Depilação a Laser</option>
+                            <option value="botox">Botox</option>
+                            <option value="preenchimento">Preenchimento Facial</option>
+                            <option value="manicure">Manicure/Pedicure</option>
+                            <option value="massagem">Massagem Relaxante</option>
+                            <option value="outro">Outro</option>
+                        </select>
+                    </div>
+                    <div class="input-group">
+                        <label>Data do Fechamento</label>
+                        <input type="date" id="newClientClosureDate">
                     </div>
                     <button class="button" onclick="addClient()">Adicionar Cliente</button>
                 </div>
 
                 <div class="section">
                     <div class="section-title">Meus Clientes</div>
-                    <div class="empty-state">
-                        <p>👥 Nenhum cliente cadastrado</p>
+                    <div id="clientsList">
+                        <div class="empty-state">
+                            <p>👥 Nenhum cliente cadastrado</p>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -663,6 +727,9 @@
             if (tabName === 'calendario') {
                 initCalendar();
             }
+            if (tabName === 'clientes') {
+                renderClients();
+            }
         }
 
         // Calendar Functions
@@ -756,19 +823,95 @@
             }
         }
 
-        function addClient() {
-            const name = document.getElementById('newClientName').value;
-            const phone = document.getElementById('newClientPhone').value;
-            const email = document.getElementById('newClientEmail').value;
+        let clients = [];
 
-            if (name) {
-                showToast(`✅ Cliente ${name} adicionado!`);
-                document.getElementById('newClientName').value = '';
-                document.getElementById('newClientPhone').value = '';
-                document.getElementById('newClientEmail').value = '';
-            } else {
-                showToast('⚠️ Nome é obrigatório');
+        function loadClients() {
+            const saved = localStorage.getItem('clinicaClients');
+            if (saved) {
+                clients = JSON.parse(saved);
+                renderClients();
             }
+        }
+
+        function addClient() {
+            const name = document.getElementById('newClientName').value.trim();
+            const phone = document.getElementById('newClientPhone').value.trim();
+            const treatment = document.getElementById('newClientTreatment').value;
+            const closureDate = document.getElementById('newClientClosureDate').value;
+
+            if (!name) {
+                showToast('⚠️ Nome completo é obrigatório');
+                return;
+            }
+            if (!phone) {
+                showToast('⚠️ Celular é obrigatório');
+                return;
+            }
+            if (!treatment) {
+                showToast('⚠️ Tratamento é obrigatório');
+                return;
+            }
+            if (!closureDate) {
+                showToast('⚠️ Data do fechamento é obrigatória');
+                return;
+            }
+
+            const client = {
+                id: Date.now(),
+                name,
+                phone,
+                treatment,
+                closureDate,
+                createdAt: new Date().toLocaleDateString('pt-BR')
+            };
+
+            clients.push(client);
+            localStorage.setItem('clinicaClients', JSON.stringify(clients));
+            renderClients();
+
+            showToast(`✅ Cliente ${name} adicionado!`);
+            document.getElementById('newClientName').value = '';
+            document.getElementById('newClientPhone').value = '';
+            document.getElementById('newClientTreatment').value = '';
+            document.getElementById('newClientClosureDate').value = '';
+        }
+
+        function renderClients() {
+            const listDiv = document.getElementById('clientsList');
+
+            if (clients.length === 0) {
+                listDiv.innerHTML = '<div class="empty-state"><p>👥 Nenhum cliente cadastrado</p></div>';
+                return;
+            }
+
+            listDiv.innerHTML = clients.map(client => `
+                <div class="client-card">
+                    <div class="client-name">${client.name}</div>
+                    <div class="client-info">
+                        <div class="client-info-item">
+                            <span class="client-info-label">📱 Celular:</span>
+                            <span>${client.phone}</span>
+                        </div>
+                        <div class="client-info-item">
+                            <span class="client-info-label">📅 Cadastro:</span>
+                            <span>${client.createdAt}</span>
+                        </div>
+                        <div class="client-info-item">
+                            <span class="client-info-label">📋 Fechamento:</span>
+                            <span>${new Date(client.closureDate).toLocaleDateString('pt-BR')}</span>
+                        </div>
+                    </div>
+                    <div class="client-treatment">${client.treatment}</div>
+                    <button class="button button-secondary" style="margin-top: 10px; padding: 8px 12px; font-size: 12px;" onclick="deleteClient(${client.id})">🗑️ Remover</button>
+                </div>
+            `).join('');
+        }
+
+        function deleteClient(id) {
+            clients = clients.filter(c => c.id !== id);
+            localStorage.setItem('clinicaClientes', JSON.stringify(clients));
+            renderClients();
+            showToast('✅ Cliente removido');
         }
 
         function registerPayment() {
@@ -858,6 +1001,11 @@ Relatório gerado em ${new Date().toLocaleDateString('pt-BR')} às ${new Date().
         // Log da versão
         console.log('✅ Clínica Estética Jacyara Ponte - v1.0.0');
         console.log('📱 PWA - Pode ser instalada como app');
+
+        // Initialize on page load
+        window.addEventListener('load', function() {
+            loadClients();
+        });
     </script>
 </body>
 </html>
