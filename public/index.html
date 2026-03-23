@@ -34,13 +34,14 @@
         }
 
         .header {
-            background: linear-gradient(135deg, #6b3556 0%, #8b4d7a 50%, #a0758a 100%);
+            background: linear-gradient(135deg, #d47a94 0%, #c76b8a 40%, #8b4d7a 80%, #6b3556 100%);
             color: white;
             padding: 40px 20px;
             text-align: center;
-            box-shadow: 0 8px 24px rgba(139, 77, 122, 0.25);
+            box-shadow: 0 8px 28px rgba(212, 122, 148, 0.3);
             position: relative;
             overflow: hidden;
+            border-radius: 0 0 24px 24px;
         }
 
         .header::before {
@@ -92,17 +93,18 @@
 
         .card {
             background: white;
-            border-radius: 12px;
-            padding: 18px;
+            border-radius: 18px;
+            padding: 20px;
             margin-bottom: 14px;
             box-shadow: 0 4px 16px rgba(139, 77, 122, 0.08);
-            border-left: 5px solid #8b4d7a;
+            border: none;
+            border-left: 6px solid #8b4d7a;
             transition: all 0.3s ease;
         }
 
         .card:hover {
-            box-shadow: 0 6px 20px rgba(139, 77, 122, 0.12);
-            transform: translateY(-2px);
+            box-shadow: 0 8px 24px rgba(139, 77, 122, 0.15);
+            transform: translateY(-3px);
         }
 
         .card h3 {
@@ -118,28 +120,28 @@
         }
 
         .button {
-            background: linear-gradient(135deg, #8b4d7a 0%, #a0758a 100%);
+            background: linear-gradient(135deg, #d47a94 0%, #c76b8a 50%, #8b4d7a 100%);
             color: white;
             border: none;
-            padding: 14px 20px;
-            border-radius: 10px;
+            padding: 14px 24px;
+            border-radius: 12px;
             font-size: 14px;
             font-weight: 600;
             cursor: pointer;
             width: 100%;
             margin-bottom: 12px;
             transition: all 0.3s ease;
-            box-shadow: 0 4px 12px rgba(139, 77, 122, 0.2);
+            box-shadow: 0 6px 16px rgba(212, 122, 148, 0.25);
         }
 
         .button:hover {
-            background: linear-gradient(135deg, #7a3f6a 0%, #8b4d7a 100%);
-            box-shadow: 0 6px 16px rgba(139, 77, 122, 0.3);
-            transform: translateY(-2px);
+            background: linear-gradient(135deg, #e08fa4 0%, #d47a94 50%, #9a5f85 100%);
+            box-shadow: 0 8px 20px rgba(212, 122, 148, 0.35);
+            transform: translateY(-3px);
         }
 
         .button:active {
-            transform: translateY(0);
+            transform: translateY(-1px);
         }
 
         .button-secondary {
@@ -166,35 +168,42 @@
 
         .input-group input {
             width: 100%;
-            padding: 10px 12px;
-            border: 1px solid #d4b5b5;
-            border-radius: 8px;
+            padding: 12px 14px;
+            border: 1.5px solid #e8d0d8;
+            border-radius: 12px;
             font-size: 14px;
             font-family: inherit;
+            transition: all 0.3s ease;
+        }
+
+        .input-group input:focus {
+            outline: none;
+            border-color: #d47a94;
+            box-shadow: 0 0 0 3px rgba(212, 122, 148, 0.1);
         }
 
         .nav-tabs {
             display: flex;
-            gap: 8px;
+            gap: 10px;
             margin-bottom: 20px;
             overflow-x: auto;
             background: white;
-            padding: 12px;
-            border-radius: 8px;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+            padding: 14px;
+            border-radius: 16px;
+            box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
         }
 
         .nav-tab {
-            padding: 8px 16px;
+            padding: 10px 18px;
             border: none;
-            border-radius: 6px;
-            background-color: #f0f0f0;
+            border-radius: 10px;
+            background-color: #f5f5f5;
             color: #666;
             cursor: pointer;
             font-size: 13px;
             font-weight: 600;
             white-space: nowrap;
-            transition: all 0.3s;
+            transition: all 0.3s ease;
         }
 
         .nav-tab.active {
@@ -285,9 +294,9 @@
 
         .calendar {
             background: white;
-            border-radius: 12px;
-            padding: 16px;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+            border-radius: 18px;
+            padding: 20px;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
         }
 
         .calendar-header {
@@ -338,27 +347,27 @@
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            border-radius: 8px;
+            border-radius: 12px;
             font-size: 12px;
             cursor: pointer;
-            background: #f5f5f5;
+            background: #f8f2f5;
             border: 2px solid transparent;
-            transition: all 0.3s;
+            transition: all 0.3s ease;
         }
 
         .calendar-day:hover {
             background: #e8d5e8;
-            border-color: #8b4d7a;
+            border-color: #d47a94;
         }
 
         .calendar-day.today {
-            background: #8b4d7a;
+            background: linear-gradient(135deg, #d47a94 0%, #c76b8a 100%);
             color: white;
             font-weight: bold;
         }
 
         .calendar-day.has-appointment {
-            background: linear-gradient(135deg, #8b4d7a 0%, #a0758a 100%);
+            background: linear-gradient(135deg, #d47a94 0%, #c76b8a 100%);
             color: white;
             font-weight: bold;
         }
