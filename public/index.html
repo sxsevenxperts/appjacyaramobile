@@ -1131,9 +1131,12 @@ async function loadProfile() {
     // Filtrar sidebar baseado no role
     filterSidebarByRole(data.role);
     
-    // Se é cliente, navegar para agenda automaticamente
+    // Se é cliente, navegar para agenda automaticamente e verificar notificações
     if (data.role === 'cliente') {
-      setTimeout(() => navigate('agenda'), 500);
+      setTimeout(() => {
+        verificarNotificacoesPendentes(APP.user.id);
+        navigate('agenda');
+      }, 500);
     }
   }
 }
@@ -3195,22 +3198,22 @@ function closeSidebarMobile() {
 }
 
 // ═══════════════════════════════════════════════════════
-// MENSAGENS MOTIVACIONAIS E CONTROLE DE FALTAS
+// MENSAGENS MOTIVACIONAIS (PUSH NOTIFICATIONS)
 // ═══════════════════════════════════════════════════════
 
 const MENSAGENS_MOTIVACIONAIS = {
   volta_agendamento: [
-    "💕 Olá {NOME}! Sentimos sua falta! Está na hora de agendar seu próximo procedimento de {TRATAMENTO}.",
-    "✨ {NOME}, seus resultados dependem da continuidade! Vamos agendar seu próximo procedimento?",
-    "🌟 Vimos que você estava progredindo muito bem! Que tal retomar os {TRATAMENTO}?",
-    "💆 {NOME}, a beleza e saúde da pele precisam de cuidados contínuos. Marque agora seu próximo tratamento!",
-    "🎯 Você merece manter os resultados que conquistou! Agende seu próximo {TRATAMENTO}!"
+    { title: "💕 Sentimos sua falta!", body: "Olá {NOME}! Está na hora de agendar seu próximo procedimento de {TRATAMENTO}." },
+    { title: "✨ Continue seu tratamento!", body: "{NOME}, seus resultados dependem da continuidade! Que tal retomar os {TRATAMENTO}?" },
+    { title: "🌟 Vamos voltar?", body: "Você estava progredindo muito bem! Que tal retomar seu tratamento de {TRATAMENTO}?" },
+    { title: "💆 Autocuidado", body: "{NOME}, a beleza e saúde da pele precisam de cuidados contínuos. Marque seu próximo!" },
+    { title: "🎯 Resultados garantidos", body: "Você merece manter os resultados! Agende seu próximo {TRATAMENTO}." }
   ],
   continuidade_tratamento: [
-    "⚠️ ATENÇÃO {NOME}! Faltam apenas 3 procedimentos para completar seu tratamento! 🎉 Recomendamos uma avaliação de progresso ao final.",
-    "🚀 Você está quase lá, {NOME}! Faltam 3 sessões para terminar. Continuidade é essencial para manter a beleza! 💪",
-    "💪 {NOME}, você já fez um ótimo progresso! Faltam 3 procedimentos para conclusão do protocolo.",
-    "✅ Parabéns, {NOME}! Faltam apenas 3 sessões. Não interrompa agora - os resultados dependem da continuidade! 🌟"
+    { title: "⚠️ Você está quase lá!", body: "{NOME}! Faltam apenas 3 procedimentos para completar seu tratamento! 🎉" },
+    { title: "🚀 Reta final!", body: "{NOME}, faltam 3 sessões! Continuidade é essencial para manter os resultados! 💪" },
+    { title: "💪 Progresso incrível!", body: "{NOME}, você já fez ótimo progresso! Faltam 3 para conclusão do protocolo." },
+    { title: "✅ Não pare agora!", body: "Parabéns {NOME}! Faltam apenas 3 sessões. Os resultados dependem da continuidade! 🌟" }
   ]
 };
 
@@ -3239,7 +3242,7 @@ async function enviarMensagensMotivacionais() {
       // Definir tipo de mensagem baseado em estatísticas
       let tipoMensagem = 'volta_agendamento';
       
-      // Verificar se está faltando 3 procedimentos
+      // Verificar se está próximo de completar tratamento (3 procedimentos faltando)
       const { data: agendamentos } = await sb.from('agendamentos')
         .select('*', { count: 'exact', head: true })
         .eq('cliente_id', cliente.id)
@@ -3249,7 +3252,7 @@ async function enviarMensagensMotivacionais() {
         tipoMensagem = 'continuidade_tratamento';
       }
 
-      const resultado = await enviarMensagemWhatsApp(cliente, tipoMensagem);
+      const resultado = await enviarNotificacaoMotivacional(cliente, tipoMensagem);
       if (resultado) enviadas++; else erro++;
     }
 
@@ -3260,32 +3263,49 @@ async function enviarMensagensMotivacionais() {
   }
 }
 
-async function enviarMensagemWhatsApp(cliente, tipoMensagem = 'volta_agendamento') {
+async function enviarNotificacaoMotivacional(cliente, tipoMensagem = 'volta_agendamento') {
   try {
     const mensagens = MENSAGENS_MOTIVACIONAIS[tipoMensagem] || MENSAGENS_MOTIVACIONAIS.volta_agendamento;
-    const mensagem = mensagens[Math.floor(Math.random() * mensagens.length)];
+    const msgObj = mensagens[Math.floor(Math.random() * mensagens.length)];
 
-    const textoFinal = mensagem
+    const titulo = msgObj.title
       .replace('{NOME}', cliente.nome)
       .replace('{TRATAMENTO}', cliente.tratamento || 'procedimento');
 
-    const whatsappLink = `https://wa.me/55${cliente.telefone}?text=${encodeURIComponent(textoFinal)}`;
+    const corpo = msgObj.body
+      .replace('{NOME}', cliente.nome)
+      .replace('{TRATAMENTO}', cliente.tratamento || 'procedimento');
 
-    // Registrar no banco
+    // Tentar enviar push notification via Service Worker
+    if ('serviceWorker' in navigator && 'PushManager' in window) {
+      const registration = await navigator.serviceWorker.ready;
+      await registration.showNotification(titulo, {
+        body: corpo,
+        icon: './logo.svg',
+        badge: './logo.svg',
+        tag: `msg-${cliente.id}`,
+        requireInteraction: false,
+        actions: [
+          { action: 'open', title: 'Agendar' },
+          { action: 'dismiss', title: 'Fechar' }
+        ]
+      });
+    }
+
+    // Registrar no banco com sucesso
     await sb.from('cliente_mensagens_motivacionais').insert({
       cliente_id: cliente.id,
       tipo: tipoMensagem,
-      mensagem: textoFinal,
+      titulo: titulo,
+      mensagem: corpo,
       status: 'enviada',
       proxima_mensagem_em: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
     });
 
-    // Log para envio manual (em produção seria automático)
-    console.log(`[WhatsApp] ${cliente.nome}: ${whatsappLink}`);
-
+    console.log(`✅ Push Notification enviada para ${cliente.nome}: "${titulo}"`);
     return true;
   } catch (err) {
-    console.error('Erro ao enviar mensagem:', err);
+    console.error('Erro ao enviar notificação:', err);
     return false;
   }
 }
@@ -3764,6 +3784,76 @@ async function validarClientePorNomeETelefone(nome, telefone) {
     console.error('Erro ao validar cliente:', err);
     addChatMensagem('bot', '❌ Desculpe, houve um erro ao validar seus dados. Tente novamente.');
     chatAgendamentoData.step = 'nome';
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+// VERIFICAR NOTIFICAÇÕES PENDENTES
+// ═══════════════════════════════════════════════════════
+
+async function verificarNotificacoesPendentes(clienteId) {
+  try {
+    const hoje = new Date().toISOString().split('T')[0];
+    
+    // Buscar notificações motivacionais pendentes para esta cliente
+    const { data: notificacoes } = await sb
+      .from('cliente_mensagens_motivacionais')
+      .select('*')
+      .eq('cliente_id', clienteId)
+      .eq('status', 'pendente_exibicao')
+      .lte('data_criacao', hoje)
+      .limit(1);
+
+    if (notificacoes && notificacoes.length > 0) {
+      const notif = notificacoes[0];
+      
+      // Mostrar notificação push se Service Worker está pronto
+      if ('serviceWorker' in navigator && 'Notification' in window) {
+        if (Notification.permission === 'granted') {
+          try {
+            const registration = await navigator.serviceWorker.ready;
+            await registration.showNotification(notif.titulo || '💕 Mensagem Motivacional', {
+              body: notif.mensagem,
+              icon: './logo.svg',
+              badge: './logo.svg',
+              tag: `motivacional-${notif.id}`,
+              requireInteraction: false,
+              actions: [
+                { action: 'agenda', title: 'Agendar Agora' },
+                { action: 'dismiss', title: 'Fechar' }
+              ]
+            });
+          } catch (notifErr) {
+            console.log('Notificação visualizada:', notif.titulo);
+          }
+        } else if (Notification.permission === 'default') {
+          // Pedir permissão se ainda não pediu
+          Notification.requestPermission().then(permission => {
+            if (permission === 'granted') {
+              navigator.serviceWorker.ready.then(reg => {
+                reg.showNotification(notif.titulo || '💕 Mensagem Motivacional', {
+                  body: notif.mensagem,
+                  icon: './logo.svg',
+                  badge: './logo.svg'
+                });
+              });
+            }
+          });
+        }
+      }
+
+      // Marcar notificação como exibida no banco
+      await sb.from('cliente_mensagens_motivacionais')
+        .update({ 
+          status: 'exibida', 
+          data_exibicao: new Date().toISOString() 
+        })
+        .eq('id', notif.id);
+
+      console.log(`✅ Notificação exibida para cliente: ${notif.titulo}`);
+    }
+  } catch (err) {
+    console.log('Verificação de notificações concluída');
   }
 }
 
