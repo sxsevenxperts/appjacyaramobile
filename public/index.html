@@ -1250,8 +1250,11 @@ async function renderAgenda() {
     <div id="calendar-container">
       <div id="calendar"></div>
     </div>`;
+  // Verificar se é cliente e adicionar botão de compartilhamento
+  const isCliente = APP.profile?.role === 'cliente';
   document.getElementById('top-bar-actions').innerHTML =
-    `<button class="btn btn-sm btn-primary-sm" onclick="openNovoAgendamento()">+ Novo Agendamento</button>`;
+    `<button class="btn btn-sm btn-primary-sm" onclick="openNovoAgendamento()">+ Novo Agendamento</button>
+     ${isCliente ? `<button class="btn btn-sm btn-outline" onclick="abrirCompartilharClinica()" style="margin-left:8px;">📤 Indicar Amiga</button>` : ''}`;
 
   const { data: ags } = await sb.from('v_agendamentos').select('*');
   const events = (ags||[]).map(a => ({
@@ -3365,6 +3368,189 @@ async function carregarClientesComFaltas() {
   } catch (err) {
     console.error('Erro ao carregar clientes com faltas:', err);
     return [];
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+// SISTEMA DE REFERÊNCIA - COMPARTILHAR CLÍNICA
+// ═══════════════════════════════════════════════════════
+
+async function abrirCompartilharClinica() {
+  try {
+    // Obter ou criar código de referência do cliente
+    const { data: codigoExistente } = await sb.from('cliente_codigo_referencia')
+      .select('*')
+      .eq('cliente_id', APP.user.id)
+      .single();
+
+    let codigoRef;
+    if (!codigoExistente) {
+      // Gerar novo código
+      codigoRef = gerarCodigoReferencia();
+      const linkRef = `https://clinicajacyaraponte.com/agendar?ref=${codigoRef}`;
+      
+      await sb.from('cliente_codigo_referencia').insert({
+        cliente_id: APP.user.id,
+        codigo_referencia: codigoRef,
+        link_referencia: linkRef
+      });
+    } else {
+      codigoRef = codigoExistente.codigo_referencia;
+    }
+
+    // Abrir modal de compartilhamento
+    const linkCompartilhamento = `https://clinicajacyaraponte.com/agendar?ref=${codigoRef}`;
+    
+    showModal(`<div class="modal" style="max-width:520px;">
+      <h3>📤 Indicar Amiga para Clínica Jacyara Ponte</h3>
+      <p style="color:var(--text2); margin-bottom:20px; font-size:14px;">
+        Compartilhe a clínica com suas amigas e ganhe 10% de desconto em seu próximo procedimento! 🎁
+      </p>
+      
+      <!-- Link de Referência -->
+      <div style="margin-bottom:20px;">
+        <label style="display:block; margin-bottom:8px; font-weight:500;">🔗 Seu Link Pessoal de Referência</label>
+        <div style="display:flex; gap:8px;">
+          <input type="text" value="${linkCompartilhamento}" readonly id="link-ref"
+            style="flex:1; padding:10px; border:1.5px solid var(--border); border-radius:8px; font-size:13px; background:var(--surface2);">
+          <button class="btn btn-sm btn-outline" onclick="copiarLinkReferencia()">
+            📋 Copiar
+          </button>
+        </div>
+      </div>
+      
+      <!-- Código de Referência -->
+      <div style="margin-bottom:20px;">
+        <label style="display:block; margin-bottom:8px; font-weight:500;">🔢 Seu Código de Referência</label>
+        <div style="display:flex; gap:8px;">
+          <input type="text" value="${codigoRef}" readonly
+            style="flex:1; padding:10px; border:1.5px solid var(--border); border-radius:8px; font-size:14px; background:var(--surface2); font-weight:bold; text-align:center;">
+          <button class="btn btn-sm btn-outline" onclick="copiarTexto('${codigoRef}')">
+            📋 Copiar
+          </button>
+        </div>
+      </div>
+      
+      <!-- Opções de Compartilhamento -->
+      <div style="margin-bottom:20px;">
+        <label style="display:block; margin-bottom:12px; font-weight:500;">📱 Compartilhar Via:</label>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+          <button onclick="compartilharWhatsApp('${linkCompartilhamento}')" 
+            style="padding:12px; background:#25d366; color:white; border:none; border-radius:8px; cursor:pointer; font-weight:500; display:flex; align-items:center; justify-content:center; gap:6px;">
+            💬 WhatsApp
+          </button>
+          <button onclick="compartilharEmail('${linkCompartilhamento}')" 
+            style="padding:12px; background:#0066cc; color:white; border:none; border-radius:8px; cursor:pointer; font-weight:500; display:flex; align-items:center; justify-content:center; gap:6px;">
+            📧 E-mail
+          </button>
+        </div>
+      </div>
+      
+      <!-- Informações de Benefício -->
+      <div style="background:var(--surface2); padding:16px; border-radius:10px; margin-bottom:20px;">
+        <p style="margin:0; font-size:13px; color:var(--text);">
+          <strong>🎁 Benefício da Indicação:</strong><br>
+          ✅ Sua amiga: Desconto 10% no primeiro procedimento<br>
+          ✅ Você: Desconto 10% também ganho na próxima visita<br>
+          🎯 Limite: Ganhe até R$ 100 em descontos
+        </p>
+      </div>
+      
+      <!-- Estatísticas (se houver) -->
+      <div id="stats-referral" style="margin-bottom:16px;"></div>
+      
+      <div style="display:flex; gap:8px;">
+        <button class="btn btn-outline" style="flex:1;" onclick="closeModal()">Fechar</button>
+      </div>
+    </div>`);
+
+    // Carregar estatísticas
+    carregarEstatisticasReferral();
+  } catch (err) {
+    console.error('Erro ao abrir compartilhamento:', err);
+    toast('Erro ao carregar dados', 'error');
+  }
+}
+
+function gerarCodigoReferencia() {
+  // Gerar código único (exemplo: AMIGA2024ABC)
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  let codigo = 'AMG';
+  for (let i = 0; i < 6; i++) {
+    codigo += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return codigo;
+}
+
+function copiarLinkReferencia() {
+  const link = document.getElementById('link-ref').value;
+  copiarTexto(link);
+}
+
+function copiarTexto(texto) {
+  navigator.clipboard.writeText(texto).then(() => {
+    toast('✅ Copiado para a área de transferência!', 'success');
+  }).catch(() => {
+    toast('Erro ao copiar', 'error');
+  });
+}
+
+function compartilharWhatsApp(link) {
+  const mensagem = `💕 Olá! Quero indicar a Clínica Jacyara Ponte para você! Ela é especializada em estética corporal e facial com excelentes resultados. 🌟\n\nClique aqui e ganhe 10% de desconto: ${link}\n\nVale muito a pena! ✨`;
+  const whatsappLink = `https://wa.me/?text=${encodeURIComponent(mensagem)}`;
+  window.open(whatsappLink, '_blank');
+  
+  toast('WhatsApp aberto! Escolha o contato para enviar', 'info');
+  
+  // Registrar compartilhamento
+  registrarCompartilhamento('whatsapp');
+}
+
+function compartilharEmail(link) {
+  const assunto = 'Conheça a Clínica Jacyara Ponte - Estética de Qualidade!';
+  const corpo = `Olá!\n\nQuero indicar para você a Clínica Jacyara Ponte, especializada em estética corporal e facial. Os resultados são incríveis! ✨\n\nClique no link abaixo e ganhe 10% de desconto no seu primeiro procedimento:\n${link}\n\nVale muito a pena!\n\nAbraços! 💕`;
+  
+  const emailLink = `mailto:?subject=${encodeURIComponent(assunto)}&body=${encodeURIComponent(corpo)}`;
+  window.location.href = emailLink;
+  
+  // Registrar compartilhamento
+  registrarCompartilhamento('email');
+}
+
+async function registrarCompartilhamento(tipo) {
+  try {
+    await sb.from('cliente_referrals').insert({
+      cliente_indicador_id: APP.user.id,
+      tipo_compartilhamento: tipo,
+      data_indicacao: new Date().toISOString()
+    });
+  } catch (err) {
+    console.error('Erro ao registrar compartilhamento:', err);
+  }
+}
+
+async function carregarEstatisticasReferral() {
+  try {
+    const { data } = await sb.from('cliente_referral_stats')
+      .select('*')
+      .eq('cliente_id', APP.user.id)
+      .single();
+
+    if (data) {
+      const statsHtml = `
+        <div style="background:#fffbe6; padding:12px; border-radius:8px; border-left:4px solid #ffd700;">
+          <p style="margin:0; font-size:13px; color:#333;">
+            <strong>📊 Suas Indicações:</strong><br>
+            👥 Amigas indicadas: <strong>${data.total_indicacoes || 0}</strong><br>
+            ✅ Amigas cadastradas: <strong>${data.total_cadastros || 0}</strong><br>
+            💰 Desconto acumulado: <strong>R$ ${(data.desconto_acumulado || 0).toFixed(2)}</strong>
+          </p>
+        </div>
+      `;
+      document.getElementById('stats-referral').innerHTML = statsHtml;
+    }
+  } catch (err) {
+    console.error('Erro ao carregar estatísticas:', err);
   }
 }
 

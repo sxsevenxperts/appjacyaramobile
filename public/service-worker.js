@@ -1,4 +1,4 @@
-const CACHE_NAME = 'jacyara-v13';
+const CACHE_NAME = 'jacyara-v14';
 const ASSETS_TO_CACHE = [
     './manifest.json',
     './offline.html'
@@ -102,4 +102,4 @@ self.addEventListener('sync', event => {
     }
 });
 
-console.log('✅ Service Worker v5 carregado — Easy Shedulle');
+console.log('✅ Service Worker v14 carregado — Easy Shedulle (Referral System)');
