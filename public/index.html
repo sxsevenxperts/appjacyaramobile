@@ -1433,7 +1433,10 @@ async function renderAgendamentos(search='') {
             <td>${statusBadge(a.status)}</td>
             <td style="display:flex;gap:6px">
               <button class="btn btn-xs btn-outline" onclick="editAgendamento('${a.id}')">✏️</button>
-              <button class="btn btn-xs btn-danger" onclick="cancelarAgendamento('${a.id}')">✖</button>
+              ${a.status === 'cancelado' ?
+                `<button class="btn btn-xs btn-success" onclick="reativarAgendamento('${a.id}')">▶️</button>` :
+                `<button class="btn btn-xs btn-danger" onclick="cancelarAgendamento('${a.id}')">⏸️</button>`
+              }
             </td>
           </tr>`).join('') || '<tr><td colspan="8" style="text-align:center;color:var(--text2);padding:32px">Nenhum agendamento encontrado</td></tr>'}
         </tbody>
@@ -1795,6 +1798,13 @@ async function cancelarAgendamento(id) {
   navigate(APP.currentPage);
 }
 
+async function reativarAgendamento(id) {
+  if (!await confirm2('Reativar este agendamento?')) return;
+  await sb.from('agendamentos').update({ status:'confirmado' }).eq('id', id);
+  toast('✅ Agendamento reativado.', 'success');
+  navigate(APP.currentPage);
+}
+
 // ═══════════════════════════════════════════════════════
 // ── CLIENTES ──
 // ═══════════════════════════════════════════════════════
@@ -1884,6 +1894,7 @@ async function renderClientes(search='') {
               <button class="btn btn-xs btn-outline" onclick="openClienteModal('${c.id}')">✏️</button>
               <button class="btn btn-xs btn-outline" onclick="openProntuarioFotos('${c.id}','${c.nome}')">📸</button>
               <button class="btn btn-xs btn-outline" onclick="navigate('agendamentos');closeSidebarMobile()">📅</button>
+              <button class="btn btn-xs ${c.ativo?'btn-warning':'btn-success'}" onclick="toggleClienteStatus('${c.id}', ${!c.ativo})">${c.ativo?'⏸️ Inativar':'▶️ Ativar'}</button>
               <button class="btn btn-xs btn-danger" onclick="deleteCliente('${c.id}')">🗑</button>
             </td>
           </tr>`).join('') || '<tr><td colspan="7" style="text-align:center;color:var(--text2);padding:32px">Nenhum cliente encontrado</td></tr>'}
@@ -2156,6 +2167,23 @@ async function deletarFotoProntuario(fotoId, clienteId) {
   } else {
     toast('✅ Foto removida do prontuário', 'success');
     openProntuarioFotos(clienteId, 'Cliente');
+  }
+}
+
+async function toggleClienteStatus(id, novoStatus) {
+  try {
+    const { data: cliente } = await sb.from('clientes').select('nome').eq('id', id).single();
+    const statusTexto = novoStatus ? 'Ativado' : 'Inativado';
+    const acao = novoStatus ? 'ativar' : 'inativar';
+
+    if (!await confirm2(`Tem certeza que quer ${acao} o cliente "${cliente?.nome}"?`)) return;
+
+    await sb.from('clientes').update({ ativo: novoStatus }).eq('id', id);
+    toast(`✅ Cliente ${statusTexto} com sucesso!`, 'success');
+    renderClientes();
+  } catch (err) {
+    console.error('Erro ao alternar status:', err);
+    toast('Erro ao alterar status do cliente', 'error');
   }
 }
 
