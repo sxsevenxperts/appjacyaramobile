@@ -1637,8 +1637,13 @@ async function concluirAgendamento(id) {
       await sb.from('pacotes_cliente').update({ sessoes_utilizadas: novas, status: newStatus }).eq('id', pac.id);
     }
   }
-  closeModal(); toast('Agendamento concluído!');
-  navigate(APP.currentPage);
+  closeModal(); 
+  toast('Agendamento concluído!');
+  
+  // Abrir modal de avaliação
+  setTimeout(() => {
+    abrirAvaliacaoAtendimento(id, ag?.cliente_id, ag?.profissional_id);
+  }, 800);
 }
 
 async function cancelarAgendamento(id) {
@@ -3143,6 +3148,199 @@ async function enviarMensagemWhatsApp(cliente, tipoMensagem = 'volta_agendamento
   } catch (err) {
     console.error('Erro ao enviar mensagem:', err);
     return false;
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+// AVALIAÇÃO DE ATENDIMENTO PÓS-PROCEDIMENTO
+// ═══════════════════════════════════════════════════════
+
+function abrirAvaliacaoAtendimento(agendamentoId, clienteId, profissionalId) {
+  showModal(`<div class="modal" style="max-width:520px;">
+    <h3>⭐ Avaliação do Atendimento</h3>
+    <p style="color:var(--text2); margin-bottom:20px; font-size:14px;">
+      Sua opinião é muito importante! Avalie sua experiência:
+    </p>
+    
+    <!-- Avaliação Geral -->
+    <div style="margin-bottom:20px;">
+      <label style="display:block; margin-bottom:8px; font-weight:500;">⭐ Avaliação Geral</label>
+      <div style="display:flex; gap:10px; justify-content:center;" id="rating-geral">
+        ${[1,2,3,4,5].map(i => `
+          <button onclick="setarAvaliacao('geral', ${i})" class="rating-star" style="font-size:32px; cursor:pointer; padding:8px; border:none; background:none; opacity:0.3; transition:0.2s;" data-value="${i}">
+            ⭐
+          </button>
+        `).join('')}
+      </div>
+    </div>
+    
+    <!-- Atendimento -->
+    <div style="margin-bottom:20px;">
+      <label style="display:block; margin-bottom:8px; font-weight:500;">👥 Atendimento do Profissional</label>
+      <div style="display:flex; gap:10px; justify-content:center;" id="rating-atendimento">
+        ${[1,2,3,4,5].map(i => `
+          <button onclick="setarAvaliacao('atendimento', ${i})" class="rating-star" style="font-size:28px; cursor:pointer; padding:8px; border:none; background:none; opacity:0.3; transition:0.2s;" data-value="${i}">
+            👍
+          </button>
+        `).join('')}
+      </div>
+    </div>
+    
+    <!-- Resultado -->
+    <div style="margin-bottom:20px;">
+      <label style="display:block; margin-bottom:8px; font-weight:500;">💅 Resultado do Procedimento</label>
+      <div style="display:flex; gap:10px; justify-content:center;" id="rating-resultado">
+        ${[1,2,3,4,5].map(i => `
+          <button onclick="setarAvaliacao('resultado', ${i})" class="rating-star" style="font-size:28px; cursor:pointer; padding:8px; border:none; background:none; opacity:0.3; transition:0.2s;" data-value="${i}">
+            ✨
+          </button>
+        `).join('')}
+      </div>
+    </div>
+    
+    <!-- Ambiente -->
+    <div style="margin-bottom:20px;">
+      <label style="display:block; margin-bottom:8px; font-weight:500;">🏥 Ambiente e Higiene</label>
+      <div style="display:flex; gap:10px; justify-content:center;" id="rating-ambiente">
+        ${[1,2,3,4,5].map(i => `
+          <button onclick="setarAvaliacao('ambiente', ${i})" class="rating-star" style="font-size:28px; cursor:pointer; padding:8px; border:none; background:none; opacity:0.3; transition:0.2s;" data-value="${i}">
+            🏠
+          </button>
+        `).join('')}
+      </div>
+    </div>
+    
+    <!-- Profissionalismo -->
+    <div style="margin-bottom:20px;">
+      <label style="display:block; margin-bottom:8px; font-weight:500;">🎓 Profissionalismo</label>
+      <div style="display:flex; gap:10px; justify-content:center;" id="rating-profissionalismo">
+        ${[1,2,3,4,5].map(i => `
+          <button onclick="setarAvaliacao('profissionalismo', ${i})" class="rating-star" style="font-size:28px; cursor:pointer; padding:8px; border:none; background:none; opacity:0.3; transition:0.2s;" data-value="${i}">
+            🏆
+          </button>
+        `).join('')}
+      </div>
+    </div>
+    
+    <!-- Observações -->
+    <div style="margin-bottom:20px;">
+      <label style="display:block; margin-bottom:8px; font-weight:500;">💬 Observações (Opcional)</label>
+      <textarea id="obs-avaliacao" placeholder="Deixe suas sugestões, elogios ou críticas construtivas..." 
+        style="width:100%; padding:10px; border:1.5px solid var(--border); border-radius:8px; font-size:13px; resize:vertical; min-height:80px; box-sizing:border-box;"></textarea>
+    </div>
+    
+    <!-- Checkboxes -->
+    <div style="display:flex; gap:12px; margin-bottom:20px; flex-wrap:wrap;">
+      <label style="display:flex; align-items:center; gap:6px; cursor:pointer;">
+        <input type="checkbox" id="recomendaria" checked style="cursor:pointer;">
+        <span style="font-size:13px;">Recomendaria para amigos</span>
+      </label>
+      <label style="display:flex; align-items:center; gap:6px; cursor:pointer;">
+        <input type="checkbox" id="voltaria" checked style="cursor:pointer;">
+        <span style="font-size:13px;">Voltaria para novo procedimento</span>
+      </label>
+    </div>
+    
+    <div style="display:flex; gap:10px;">
+      <button class="btn btn-primary" style="flex:1;" onclick="salvarAvaliacaoAtendimento('${agendamentoId}', '${clienteId}', '${profissionalId}')">
+        💾 Enviar Avaliação
+      </button>
+      <button class="btn btn-outline" style="flex:1;" onclick="closeModal()">Pular</button>
+    </div>
+    
+    <p style="font-size:11px; color:var(--text3); margin-top:12px; text-align:center;">
+      Sua avaliação nos ajuda a melhorar cada vez mais! 💝
+    </p>
+  </div>`);
+
+  // Adicionar estilos para rating stars
+  const style = document.createElement('style');
+  style.textContent = `
+    .rating-star:hover { opacity: 0.8 !important; transform: scale(1.1); }
+    .rating-star.active { opacity: 1 !important; }
+  `;
+  document.head.appendChild(style);
+}
+
+function setarAvaliacao(tipo, valor) {
+  // Atualizar visual dos stars
+  const container = document.getElementById(`rating-${tipo}`);
+  if (container) {
+    container.querySelectorAll('.rating-star').forEach((btn, idx) => {
+      if (idx < valor) {
+        btn.classList.add('active');
+        btn.style.opacity = '1';
+      } else {
+        btn.classList.remove('active');
+        btn.style.opacity = '0.3';
+      }
+    });
+  }
+  // Armazenar valor
+  window[`avaliacao_${tipo}`] = valor;
+}
+
+async function salvarAvaliacaoAtendimento(agendamentoId, clienteId, profissionalId) {
+  // Coletar valores
+  const avaliacao_geral = window.avaliacao_geral;
+  const atendimento = window.avaliacao_atendimento;
+  const resultado = window.avaliacao_resultado;
+  const ambiente = window.avaliacao_ambiente;
+  const profissionalismo = window.avaliacao_profissionalismo;
+  const observacoes = document.getElementById('obs-avaliacao').value;
+  const recomendaria = document.getElementById('recomendaria').checked;
+  const voltaria = document.getElementById('voltaria').checked;
+
+  // Validar se pelo menos a avaliação geral foi feita
+  if (!avaliacao_geral) {
+    toast('Por favor, avalie a experiência geral', 'error');
+    return;
+  }
+
+  try {
+    const { error } = await sb.from('avaliacao_atendimento').insert({
+      agendamento_id: agendamentoId,
+      cliente_id: clienteId,
+      profissional_id: profissionalId,
+      avaliacao_geral: avaliacao_geral,
+      atendimento: atendimento,
+      resultado: resultado,
+      ambiente: ambiente,
+      profissionalismo: profissionalismo,
+      observacoes: observacoes,
+      recomendaria: recomendaria,
+      voltaria: voltaria
+    });
+
+    if (error) {
+      toast('Erro ao salvar avaliação: ' + error.message, 'error');
+      return;
+    }
+
+    toast('✅ Obrigada pela sua avaliação! 💝', 'success');
+    closeModal();
+    
+    // Limpar valores
+    delete window.avaliacao_geral;
+    delete window.avaliacao_atendimento;
+    delete window.avaliacao_resultado;
+    delete window.avaliacao_ambiente;
+    delete window.avaliacao_profissionalismo;
+    
+    navigate(APP.currentPage);
+  } catch (err) {
+    console.error('Erro:', err);
+    toast('Erro ao salvar avaliação', 'error');
+  }
+}
+
+async function carregarEstatisticasAvaliacao() {
+  try {
+    const { data } = await sb.from('avaliacao_estatisticas').select('*');
+    return data?.[0] || null;
+  } catch (err) {
+    console.error('Erro ao carregar estatísticas:', err);
+    return null;
   }
 }
 
